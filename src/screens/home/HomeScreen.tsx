@@ -1,7 +1,7 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  ImageBackground, FlatList,
+  ImageBackground, FlatList, TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -12,6 +12,20 @@ import { SkeletonCard } from '../../components/SkeletonCard';
 import { ErrorState } from '../../components/ErrorState';
 import { colors } from '../../theme/colors';
 import { shadows } from '../../theme/shadows';
+
+// Home's own events + venues (already fetched for the feed below) are what
+// back this search — no separate network call. That keeps it snappy and
+// consistent with what's already on screen, at the cost of not covering
+// cars/apartments; the sliders button next to the field routes to Explore's
+// full cross-category search for that.
+type LocalSearchHit = {
+  id: string;
+  kind: 'event' | 'venue';
+  title: string;
+  meta: string;
+  image?: string;
+  navigateTo: { route: string; params: Record<string, any> };
+};
 
 const categories = [
   { label: 'Events',  icon: 'ticket', route: 'EventsList' },
@@ -38,6 +52,15 @@ export const HomeScreen = ({ navigation }: any) => {
   const [venuesLoading, setVenuesLoading] = useState(true);
 
   const [unreadCount, setUnreadCount] = useState(0);
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+
+  // 250ms debounce so filtering below doesn't run on every keystroke.
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(searchQuery.trim()), 250);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
 
   const loadEvents = useCallback(async () => {
     setEventsLoading(true);
@@ -76,6 +99,34 @@ export const HomeScreen = ({ navigation }: any) => {
       .catch(() => {});
   }, [loadEvents, loadVenues]);
 
+  const searchResults = useMemo((): LocalSearchHit[] => {
+    if (!debouncedQuery) return [];
+    const q = debouncedQuery.toLowerCase();
+    const eventHits: LocalSearchHit[] = events
+      .filter((e) => e.name.toLowerCase().includes(q))
+      .map((e) => ({
+        id: e.id,
+        kind: 'event',
+        title: e.name,
+        meta: new Date(e.startDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
+        image: e.images?.[0],
+        navigateTo: { route: 'EventDetail', params: { eventId: e.id } },
+      }));
+    const venueHits: LocalSearchHit[] = venues
+      .filter((v) => v.name.toLowerCase().includes(q))
+      .map((v) => ({
+        id: v.id,
+        kind: 'venue',
+        title: v.name,
+        meta: v.city,
+        image: v.mediaUrls?.[0],
+        navigateTo: { route: 'VenueDetail', params: { venueId: v.id } },
+      }));
+    return [...eventHits, ...venueHits];
+  }, [debouncedQuery, events, venues]);
+
+  const isSearching = debouncedQuery.length > 0;
+
   return (
     <View style={styles.container}>
       <LinearGradient colors={['#0A0A0F', '#0D0D1A']} style={StyleSheet.absoluteFill} />
@@ -103,31 +154,97 @@ export const HomeScreen = ({ navigation }: any) => {
         </View>
 
         {/* Search */}
-        <TouchableOpacity
-          style={styles.searchBar}
-          onPress={() => navigation.navigate('ExploreTab', { screen: 'ExploreHub', params: { autoFocus: true } })}
-        >
+        <View style={styles.searchBar}>
           <FontAwesome6 name="magnifying-glass" size={14} color={colors.textMuted} />
-          <Text style={styles.searchPlaceholder}>Search events, venues, stays...</Text>
-          <FontAwesome6 name="sliders" size={14} color={colors.goldMid} />
-        </TouchableOpacity>
-
-        {/* Categories */}
-        <View style={styles.categories}>
-          {categories.map((cat) => (
-            <TouchableOpacity
-              key={cat.label}
-              style={styles.catItem}
-              onPress={() => navigation.navigate(cat.route)}
-            >
-              <View style={styles.catIconWrap}>
-                <FontAwesome6 name={cat.icon} size={20} color={colors.goldEnd} />
-              </View>
-              <Text style={styles.catLabel}>{cat.label}</Text>
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search events, venues, stays..."
+            placeholderTextColor={colors.textMuted}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            returnKeyType="search"
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={8}>
+              <FontAwesome6 name="xmark" size={13} color={colors.textMuted} />
             </TouchableOpacity>
-          ))}
+          )}
+          <TouchableOpacity
+            onPress={() => navigation.navigate('ExploreTab', { screen: 'ExploreHub', params: { autoFocus: true } })}
+            hitSlop={8}
+          >
+            <FontAwesome6 name="sliders" size={14} color={colors.goldMid} />
+          </TouchableOpacity>
         </View>
 
+        {/* Categories — hidden while searching so the results list isn't
+            competing with them for space. */}
+        {!isSearching && (
+          <View style={styles.categories}>
+            {categories.map((cat) => (
+              <TouchableOpacity
+                key={cat.label}
+                style={styles.catItem}
+                onPress={() => navigation.navigate(cat.route)}
+              >
+                <View style={styles.catIconWrap}>
+                  <FontAwesome6 name={cat.icon} size={20} color={colors.goldEnd} />
+                </View>
+                <Text style={styles.catLabel}>{cat.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
+        {isSearching ? (
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            style={styles.scroll}
+            contentContainerStyle={{ paddingBottom: 16 }}
+          >
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>
+                {searchResults.length > 0 ? `Results for "${debouncedQuery}"` : 'No matches'}
+              </Text>
+            </View>
+            {searchResults.length === 0 ? (
+              <View style={styles.emptyRow}>
+                <Text style={styles.emptyRowText}>
+                  Nothing in Events or Venues matches "{debouncedQuery}". Try Explore for Stays and Rides too.
+                </Text>
+              </View>
+            ) : (
+              <View style={{ paddingHorizontal: 24, gap: 10 }}>
+                {searchResults.map((hit) => (
+                  <TouchableOpacity
+                    key={`${hit.kind}-${hit.id}`}
+                    style={styles.resultRow}
+                    onPress={() => navigation.navigate(hit.navigateTo.route, hit.navigateTo.params)}
+                    activeOpacity={0.85}
+                  >
+                    <ImageBackground
+                      source={{ uri: hit.image }}
+                      style={styles.resultThumb}
+                      imageStyle={{ borderRadius: 10 }}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.resultTitle} numberOfLines={1}>{hit.title}</Text>
+                      <View style={styles.eventMeta}>
+                        <FontAwesome6
+                          name={hit.kind === 'event' ? 'calendar' : 'location-dot'}
+                          size={9}
+                          color={colors.goldEnd}
+                        />
+                        <Text style={styles.eventMetaText}>{hit.meta}</Text>
+                      </View>
+                    </View>
+                    <FontAwesome6 name="chevron-right" size={12} color={colors.textMuted} />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </ScrollView>
+        ) : (
         <ScrollView
           showsVerticalScrollIndicator={false}
           style={styles.scroll}
@@ -249,6 +366,7 @@ export const HomeScreen = ({ navigation }: any) => {
             />
           )}
         </ScrollView>
+        )}
       </SafeAreaView>
     </View>
   );
@@ -289,7 +407,15 @@ const styles = StyleSheet.create({
     borderRadius: 13, paddingHorizontal: 16, height: 48,
     marginHorizontal: 24, marginTop: 16,
   },
-  searchPlaceholder: { flex: 1, fontFamily: 'Inter-Regular', fontSize: 13, color: colors.textMuted },
+  searchInput: { flex: 1, fontFamily: 'Inter-Regular', fontSize: 13, color: colors.textPrimary, padding: 0 },
+  resultRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: colors.cardBg,
+    borderWidth: 1, borderColor: colors.borderGold,
+    borderRadius: 14, padding: 10,
+  },
+  resultThumb: { width: 48, height: 48, borderRadius: 10, backgroundColor: colors.bgPrimary },
+  resultTitle: { fontFamily: 'Inter-SemiBold', fontSize: 13, color: colors.textPrimary, marginBottom: 3 },
   categories: {
     flexDirection: 'row', justifyContent: 'space-between',
     paddingHorizontal: 24, marginTop: 18, marginBottom: 4,
@@ -319,7 +445,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden', ...shadows.card,
   },
   eventCardBg: { width: '100%', height: '100%' },
-  eventCardOverlay: { ...StyleSheet.absoluteFillObject },
+  eventCardOverlay: StyleSheet.absoluteFill,
   eventCardContent: { position: 'absolute', left: 0, top: 0, bottom: 0, padding: 18, justifyContent: 'center' },
   eventName: { fontFamily: 'PlayfairDisplay-Black', fontSize: 20, color: colors.textPrimary, textTransform: 'uppercase', marginBottom: 8 },
   eventMeta: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 3 },

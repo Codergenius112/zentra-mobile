@@ -5,7 +5,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { FontAwesome6 as Icon } from '@expo/vector-icons';
-import { usePaystack } from 'react-native-paystack-webview';
+import { usePaystack } from '../../paystack/PaystackProvider';
 import { walletAPI, Wallet, WalletTransaction } from '../../services/api';
 import { useStore } from '../../store/useStore';
 import { GoldButton } from '../../components/GoldButton';

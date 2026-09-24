@@ -6,7 +6,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { FontAwesome6 as Icon } from '@expo/vector-icons';
-import { usePaystack } from 'react-native-paystack-webview';
+import { usePaystack } from '../../paystack/PaystackProvider';
 import {
   SERVICE_CHARGE, bookingsAPI, paymentsAPI, tablesAPI, ticketsAPI, BackendBooking,
 } from '../../services/api';
@@ -441,8 +441,9 @@ export const PaymentScreen = ({ route, navigation }: any) => {
 
     popup.checkout({
       email,
-      // NAIRA, not kobo — the library multiplies by 100 internally
-      // (react-native-paystack-webview/production/lib/utils.js:101).
+      // NAIRA, not kobo — our provider multiplies by 100 internally
+      // (src/paystack/PaystackProvider.tsx, toKobo), matching the contract
+      // the react-native-paystack-webview library used.
       amount: held.amount,
       reference: referenceRef.current,
       metadata: { bookingId: held.id, bookingType: held.type },
@@ -462,9 +463,10 @@ export const PaymentScreen = ({ route, navigation }: any) => {
         setPhase('failed');
         playResultAnimation({ shake: true });
       },
-      // Declared for completeness but NEVER invoked by this library version:
-      // production/lib/utils.js handles the 'error' message with close() only.
-      // The real escape hatch is the "window closed" button in the charging UI.
+      // Unlike the stock library (which never fired onError), our provider
+      // can — intentionally unused here so a Paystack-side error keeps the
+      // existing escape-hatch flow: the "Payment window closed without a
+      // result?" button in the charging UI.
       onError: () => {},
     });
   }, [intent, user?.email, createBooking, addBooking, popup, handlePaid, playResultAnimation]);
@@ -568,7 +570,9 @@ export const PaymentScreen = ({ route, navigation }: any) => {
     const isUnresolved = phase === 'unresolved';
 
     const accent = isSuccess ? colors.goldEnd : isUnresolved ? colors.warning : '#F87171';
-    const glow = isSuccess
+    // Explicit tuple annotation — LinearGradient's `colors` prop requires at
+    // least 2 elements typed as a tuple, and the ternary alone widens to string[].
+    const glow: [string, string] = isSuccess
       ? ['rgba(245,200,66,0.16)', 'rgba(245,200,66,0.04)']
       : isUnresolved
         ? ['rgba(232,184,75,0.16)', 'rgba(232,184,75,0.04)']

@@ -16,7 +16,7 @@ import {
   Inter_700Bold,
 } from '@expo-google-fonts/inter';
 import { RootNavigator } from './src/navigation/RootNavigator';
-import { PaystackProvider } from 'react-native-paystack-webview';
+import { PaystackProvider } from './src/paystack/PaystackProvider';
 
 // Keep the native splash screen up until fonts are ready — avoids a flash
 // of system-font UI before Playfair Display / Inter kick in.

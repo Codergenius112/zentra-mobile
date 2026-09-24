@@ -64,7 +64,7 @@ export default function StarField({ count = 60, maxTop = 65 }: StarFieldProps) {
   }, []);
 
   return (
-    <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
       {stars.map((s) => (
         <Star key={s.id} {...s} />
       ))}

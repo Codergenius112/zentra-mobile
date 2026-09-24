@@ -3,10 +3,10 @@
     "name": "Zentra",
     "slug": "zentra",
     "version": "1.0.0",
+    "sdkVersion": "57.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -21,17 +21,13 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundImage": "./assets/adaptive-icon-background.png"
       },
-      "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "package": "com.anonymous.zentra"
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "extra": {
       "EXPO_PUBLIC_API_URL": "https://dlifestyle-backend-production.up.railway.app"
-    },
-    "plugins": [
-      "@react-native-community/datetimepicker"
-    ]
+    }
   }
 }
