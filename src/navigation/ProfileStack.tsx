@@ -7,6 +7,7 @@ import { MyBookingsScreen } from '../screens/bookings/MyBookingsScreen';
 import { BookingConfirmationScreen } from '../screens/bookings/BookingConfirmationScreen';
 import { PaymentScreen } from '../screens/payments/PaymentScreen';
 import { TableOrderScreen } from '../screens/orders/OrderScreen';
+import { TicketScreen } from '../screens/tickets/TicketScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -25,5 +26,6 @@ export const ProfileStack = () => (
       options={{ gestureEnabled: false }}
     />
     <Stack.Screen name="TableOrder" component={TableOrderScreen} />
+    <Stack.Screen name="Ticket" component={TicketScreen} />
   </Stack.Navigator>
 );

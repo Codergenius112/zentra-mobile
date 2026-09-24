@@ -95,6 +95,9 @@ export const StaysScreen = ({ navigation }: any) => {
                       <Text style={styles.perNight}>/night</Text>
                     </Text>
                   </View>
+                  {!!item.businessName && (
+                    <Text style={styles.cardBusiness}>Managed by {item.businessName}</Text>
+                  )}
                   <View style={styles.cardMeta}>
                     <Icon name="location-dot" size={11} color={colors.goldMid} />
                     <Text style={styles.cardMetaText}>{item.city}</Text>
@@ -148,6 +151,7 @@ const styles = StyleSheet.create({
   cardInfoTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   cardName: { fontFamily: 'PlayfairDisplay-Bold', fontSize: 15, color: colors.textPrimary, flex: 1 },
   cardPrice: { fontFamily: 'Inter-Bold', fontSize: 15, color: colors.goldEnd },
+  cardBusiness: { fontFamily: 'Inter-Regular', fontSize: 11, color: colors.textMuted, marginTop: -2, marginBottom: 4 },
   perNight: { fontFamily: 'Inter-Regular', fontSize: 10, color: colors.textMuted },
   cardMeta: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
   cardMetaText: { fontFamily: 'Inter-Regular', fontSize: 11, color: colors.textMuted },

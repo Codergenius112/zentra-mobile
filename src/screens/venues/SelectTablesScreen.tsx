@@ -194,6 +194,7 @@ export const SelectVenueTableScreen = ({ route, navigation }: any) => {
                 title={`Book ${selectedTable.name} →`}
                 onPress={() => navigation.navigate('Payment', {
                   venueId,
+                  venueName,
                   tableId: selectedTable.id,
                   tableName: selectedTable.name,
                   tablePrice: selectedTable.price,
@@ -208,10 +209,12 @@ export const SelectVenueTableScreen = ({ route, navigation }: any) => {
                 title="Split the Bill with Friends"
                 onPress={() => navigation.navigate('GroupBooking', {
                   venueId,
+                  venueName,
                   tableId: selectedTable.id,
                   tableName: selectedTable.name,
                   tablePrice: selectedTable.price,
                   maxGuests: selectedTable.capacity,
+                  bookingDate,
                 })}
                 variant="secondary"
               />

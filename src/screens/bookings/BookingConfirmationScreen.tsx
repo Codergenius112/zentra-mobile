@@ -21,6 +21,10 @@ interface ResolvedDetails {
 }
 
 const CANCELLED_STATUSES = ['CANCELLED', 'EXPIRED'];
+// Booking exists on the backend but no charge has actually landed yet —
+// neither of these should ever be shown as "Total Paid".
+const PENDING_PAYMENT_STATUSES = ['INITIATED', 'PENDING_PAYMENT'];
+const UNPAID_STATUSES = [...PENDING_PAYMENT_STATUSES, 'PENDING_GROUP_PAYMENT'];
 
 export const BookingConfirmationScreen = ({ route, navigation }: any) => {
   const { bookingId } = route.params;
@@ -44,6 +48,9 @@ export const BookingConfirmationScreen = ({ route, navigation }: any) => {
   const cardY       = useRef(new Animated.Value(24)).current;
   const cardOpacity = useRef(new Animated.Value(0)).current;
   const ctaOpacity  = useRef(new Animated.Value(0)).current;
+  // Handle of the looping breathe animation so it can be stopped on unmount —
+  // Animated.loop() runs forever otherwise, even after the screen is gone.
+  const breatheLoopRef = useRef<Animated.CompositeAnimation | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -94,10 +101,11 @@ export const BookingConfirmationScreen = ({ route, navigation }: any) => {
             extra: tableName,
           });
         } else {
+          const checkInOrPickup = b.metadata?.checkInDate ?? b.metadata?.pickupDate;
           setDetails({
             name: b.bookingType === 'apartment' ? 'Stay Reservation' : 'Ride Booking',
-            dateLabel: (b.metadata?.checkInDate ?? b.metadata?.pickupDate)
-              ? new Date(b.metadata.checkInDate ?? b.metadata.pickupDate).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
+            dateLabel: checkInOrPickup
+              ? new Date(checkInOrPickup).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
               : new Date(b.createdAt).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }),
           });
         }
@@ -111,10 +119,12 @@ export const BookingConfirmationScreen = ({ route, navigation }: any) => {
   }, [bookingId]);
 
   // Kick off the cinematic sequence once data is ready — skipped entirely
-  // for cancelled/expired bookings, which render a separate, deliberately
-  // subdued state below instead.
+  // for cancelled/expired bookings and for bookings nothing has actually
+  // been paid on yet (INITIATED/PENDING_PAYMENT), which render separate,
+  // deliberately subdued states below instead.
   useEffect(() => {
     if (!booking || CANCELLED_STATUSES.includes(booking.status)) return;
+    if (PENDING_PAYMENT_STATUSES.includes(booking.status)) return;
 
     Animated.sequence([
       // Ring materializes
@@ -145,13 +155,21 @@ export const BookingConfirmationScreen = ({ route, navigation }: any) => {
     ]).start(() => {
       // Gentle continuous breathing glow once everything has settled in —
       // subtle, not distracting, just enough to feel alive.
-      Animated.loop(
+      breatheLoopRef.current = Animated.loop(
         Animated.sequence([
           Animated.timing(breathe, { toValue: 1.06, duration: 1400, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
           Animated.timing(breathe, { toValue: 1, duration: 1400, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
         ]),
-      ).start();
+      );
+      breatheLoopRef.current.start();
     });
+
+    // Stop the loop on unmount (and before the next run) — otherwise it
+    // keeps animating in the background for the lifetime of the app.
+    return () => {
+      breatheLoopRef.current?.stop();
+      breatheLoopRef.current = null;
+    };
   }, [booking?.id]);
 
   if (isLoading) {
@@ -221,7 +239,76 @@ export const BookingConfirmationScreen = ({ route, navigation }: any) => {
               variant="secondary"
               style={{ marginBottom: 12 }}
             />
-            <TouchableOpacity style={styles.homeLink} onPress={() => navigation.navigate('Home')}>
+            <TouchableOpacity style={styles.homeLink} onPress={() => navigation.navigate('HomeTab')}>
+              <Text style={styles.homeLinkText}>Back to Home</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </SafeAreaView>
+      </View>
+    );
+  }
+
+  // ── Initiated / pending payment: booking exists, nothing charged yet ─────
+  // No checkmark, no "Total Paid" — the earlier version of this screen
+  // showed both regardless of status, which is wrong: the CTA below is the
+  // only completed step (creating a Paystack-linked booking record).
+  if (PENDING_PAYMENT_STATUSES.includes(booking.status)) {
+    return (
+      <View style={styles.container}>
+        <LinearGradient colors={['#0A0A0F', '#0D0D1A']} style={StyleSheet.absoluteFill} />
+        <SafeAreaView style={styles.safe}>
+          <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+            <View style={styles.cancelledWrap}>
+              <View style={styles.cancelledIconWrap}>
+                <Icon name="clock" size={36} color={colors.goldMid} />
+              </View>
+              <Text style={styles.cancelledTitle}>Payment Not Completed</Text>
+              <Text style={styles.cancelledSubtitle}>
+                {details?.name} — this booking is on hold and hasn't been charged yet.
+              </Text>
+            </View>
+
+            <View style={styles.bookingCard}>
+              <View style={styles.bookingCardHeader}>
+                <Text style={styles.bookingRef}>Booking Ref</Text>
+                <Text style={styles.bookingRefValue}>{booking.id.slice(0, 8).toUpperCase()}</Text>
+              </View>
+              <View style={styles.divider} />
+              {[
+                { label: booking.bookingType === 'ticket' ? 'Event' : 'Booking', value: details?.name },
+                { label: 'Date', value: details?.dateLabel },
+                { label: 'Amount Due', value: `₦${formatNaira(booking.totalAmount)}`, highlight: true },
+              ].map((item, i) => (
+                <View key={i} style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>{item.label}</Text>
+                  <Text style={[styles.detailValue, (item as any).highlight && styles.detailHighlight]}>
+                    {item.value}
+                  </Text>
+                </View>
+              ))}
+            </View>
+
+            <Text style={styles.emailNote}>
+              Nothing has been charged yet — pick up where you left off.
+            </Text>
+
+            <GoldButton
+              title="Complete Payment"
+              onPress={() => navigation.navigate('Payment', {
+                bookingId: booking.id,
+                totalAmount: booking.totalAmount,
+                bookingType: booking.bookingType,
+                label: details?.name,
+              })}
+              style={{ marginBottom: 12 }}
+            />
+            <GoldButton
+              title="View My Bookings"
+              onPress={() => navigation.navigate('MyBookings')}
+              variant="secondary"
+              style={{ marginBottom: 12 }}
+            />
+            <TouchableOpacity style={styles.homeLink} onPress={() => navigation.navigate('HomeTab')}>
               <Text style={styles.homeLinkText}>Back to Home</Text>
             </TouchableOpacity>
           </ScrollView>
@@ -286,7 +373,13 @@ export const BookingConfirmationScreen = ({ route, navigation }: any) => {
               { label: booking.bookingType === 'ticket' ? 'Event' : 'Booking', value: details?.name },
               { label: 'Date', value: details?.dateLabel },
               details?.extra && { label: booking.bookingType === 'ticket' ? 'Tickets' : 'Table', value: details.extra },
-              { label: 'Total Paid', value: `₦${formatNaira(booking.totalAmount)}`, highlight: true },
+              {
+                // PENDING_GROUP_PAYMENT reaches this branch too, and nothing
+                // has actually been charged for it yet — "Total Paid" would be false.
+                label: booking.status === 'PENDING_GROUP_PAYMENT' ? 'Total Due' : 'Total Paid',
+                value: `₦${formatNaira(booking.totalAmount)}`,
+                highlight: true,
+              },
             ].filter(Boolean).map((item: any, i) => (
               <View key={i} style={styles.detailRow}>
                 <Text style={styles.detailLabel}>{item.label}</Text>
@@ -321,6 +414,27 @@ export const BookingConfirmationScreen = ({ route, navigation }: any) => {
                 style={{ marginBottom: 12 }}
               />
             )}
+            {booking.bookingType === 'ticket' && ['CONFIRMED', 'CHECKED_IN'].includes(booking.status) && (
+              <GoldButton
+                title="View Ticket"
+                onPress={() => navigation.navigate('Ticket', { ticketId: booking.id })}
+                variant="secondary"
+                style={{ marginBottom: 12 }}
+              />
+            )}
+            {booking.status === 'PENDING_GROUP_PAYMENT' && (
+              <GoldButton
+                title="Settle Full Amount"
+                onPress={() => navigation.navigate('Payment', {
+                  bookingId: booking.id,
+                  totalAmount: booking.totalAmount,
+                  bookingType: booking.bookingType,
+                  label: details?.name,
+                })}
+                variant="secondary"
+                style={{ marginBottom: 12 }}
+              />
+            )}
             <GoldButton
               title="View Booking"
               onPress={() => navigation.navigate('MyBookings')}
@@ -329,7 +443,7 @@ export const BookingConfirmationScreen = ({ route, navigation }: any) => {
             />
             <TouchableOpacity
               style={styles.homeLink}
-              onPress={() => navigation.navigate('Home')}
+              onPress={() => navigation.navigate('HomeTab')}
             >
               <Text style={styles.homeLinkText}>Back to Home</Text>
             </TouchableOpacity>

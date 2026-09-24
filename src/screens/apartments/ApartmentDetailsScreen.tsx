@@ -144,6 +144,13 @@ export const ApartmentDetailScreen = ({ route, navigation }: any) => {
             </View>
           </View>
 
+          {!!apt.businessName && (
+            <View style={styles.hostRow}>
+              <Icon name="building" size={11} color={colors.goldMid} />
+              <Text style={styles.hostText}>Managed by {apt.businessName}</Text>
+            </View>
+          )}
+
           <Text style={styles.priceRow}>
             <Text style={styles.price}>₦{formatNaira(apt.pricePerNight)}</Text>
             <Text style={styles.perNight}> / night</Text>
@@ -283,6 +290,8 @@ const styles = StyleSheet.create({
   ratingText: { fontFamily: 'Inter-Medium', fontSize: 11, color: colors.goldEnd },
   locationRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   locationText: { fontFamily: 'Inter-Regular', fontSize: 12, color: colors.textSecondary },
+  hostRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 14 },
+  hostText: { fontFamily: 'Inter-Regular', fontSize: 12, color: colors.textSecondary },
   priceRow: { marginBottom: 16 },
   price: { fontFamily: 'PlayfairDisplay-Bold', fontSize: 22, color: colors.goldEnd },
   perNight: { fontFamily: 'Inter-Regular', fontSize: 13, color: colors.textMuted },

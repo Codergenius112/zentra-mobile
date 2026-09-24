@@ -5,6 +5,7 @@ import { BookingConfirmationScreen } from '../screens/bookings/BookingConfirmati
 import { PaymentScreen } from '../screens/payments/PaymentScreen';
 import { QueueStatusScreen } from '../screens/queue/QueueScreen';
 import { TableOrderScreen } from '../screens/orders/OrderScreen';
+import { TicketScreen } from '../screens/tickets/TicketScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -20,5 +21,6 @@ export const BookingsStack = () => (
     />
     <Stack.Screen name="QueueStatus" component={QueueStatusScreen} />
     <Stack.Screen name="TableOrder" component={TableOrderScreen} />
+    <Stack.Screen name="Ticket" component={TicketScreen} />
   </Stack.Navigator>
 );

@@ -153,6 +153,13 @@ export const RideDetailScreen = ({ route, navigation }: any) => {
             </View>
           </View>
 
+          {!!ride.businessName && (
+            <View style={styles.hostRow}>
+              <Icon name="building" size={11} color={colors.goldMid} />
+              <Text style={styles.hostText}>Offered by {ride.businessName}</Text>
+            </View>
+          )}
+
           <View style={styles.chipsRow}>
             {[
               { icon: 'user-group', text: `${ride.seats} Seats` },
@@ -329,6 +336,8 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   typeText: { fontFamily: 'Inter-SemiBold', fontSize: 11, color: colors.rides, textTransform: 'capitalize' },
+  hostRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 14 },
+  hostText: { fontFamily: 'Inter-Regular', fontSize: 12, color: colors.textSecondary },
   chipsRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginBottom: 12 },
   chip: {
     flexDirection: 'row', alignItems: 'center', gap: 5,

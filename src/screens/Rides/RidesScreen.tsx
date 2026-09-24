@@ -97,6 +97,9 @@ export const RidesScreen = ({ navigation }: any) => {
                       <Text style={styles.perDay}>/day</Text>
                     </Text>
                   </View>
+                  {!!item.businessName && (
+                    <Text style={styles.cardBusiness}>Offered by {item.businessName}</Text>
+                  )}
                   <View style={styles.cardMeta}>
                     {[
                       { icon: 'user-group', text: `${item.seats} Seats` },
@@ -155,6 +158,7 @@ const styles = StyleSheet.create({
   cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   cardName: { fontFamily: 'PlayfairDisplay-Bold', fontSize: 16, color: colors.textPrimary },
   cardPrice: { fontFamily: 'Inter-Bold', fontSize: 15, color: colors.goldEnd },
+  cardBusiness: { fontFamily: 'Inter-Regular', fontSize: 11, color: colors.textMuted, marginBottom: 4 },
   perDay: { fontFamily: 'Inter-Regular', fontSize: 10, color: colors.textMuted },
   cardMeta: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   metaChip: {

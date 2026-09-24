@@ -19,6 +19,7 @@ import { BookingConfirmationScreen } from '../screens/bookings/BookingConfirmati
 import { MyBookingsScreen } from '../screens/bookings/MyBookingsScreen';
 import { TableOrderScreen } from '../screens/orders/OrderScreen';
 import { QueueStatusScreen } from '../screens/queue/QueueScreen';
+import { TicketScreen } from '../screens/tickets/TicketScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -47,6 +48,7 @@ export const HomeStack = () => (
     <Stack.Screen name="BookingConfirmation" component={BookingConfirmationScreen} />
     <Stack.Screen name="MyBookings" component={MyBookingsScreen} />
     <Stack.Screen name="TableOrder" component={TableOrderScreen} />
+    <Stack.Screen name="Ticket" component={TicketScreen} />
     <Stack.Screen name="QueueStatus" component={QueueStatusScreen} />
   </Stack.Navigator>
 );

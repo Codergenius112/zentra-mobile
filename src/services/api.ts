@@ -135,6 +135,7 @@ export interface CarListing {
   images?: string[];
   pricePerDay: number;
   city: string;
+  businessName?: string;
   seats: number;
   transmission: string;
   color: string;
@@ -153,6 +154,7 @@ export interface ApartmentListing {
   pricePerNight: number;
   city: string;
   address: string;
+  businessName?: string;
   bedrooms: number;
   bathrooms: number;
   maxGuests: number;
