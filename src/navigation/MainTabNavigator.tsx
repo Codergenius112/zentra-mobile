@@ -3,12 +3,29 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { FontAwesome6 as Icon } from '@expo/vector-icons';
+import { PaystackProvider } from 'react-native-paystack-webview';
 import { HomeStack } from './HomeStack';
 import { ExploreStack } from './ExploreStack';
 import { ItineraryStack } from './ItineraryStack';
 import { BookingsStack } from './BookingsStack';
 import { ProfileStack } from './ProfileStack';
 import { colors } from '../theme/colors';
+
+// .env defines EXPO_PUBLIC_PAYSTACK_KEY (pk_test_… or pk_live_…). Reading a
+// differently-named variable here silently yields '' — and because the library
+// does not validate publicKey, checkout would still open a modal that renders
+// blank and never fires a callback. PaymentScreen guards on the same value so a
+// missing key reports itself instead of failing silently.
+const PAYSTACK_PUBLIC_KEY = process.env.EXPO_PUBLIC_PAYSTACK_KEY || '';
+
+// Scoped here rather than at the App.tsx root: PaystackProvider permanently
+// mounts a background WebView the moment it renders (used by WalletScreen and
+// PaymentScreen, both only reachable from this authenticated tab tree). A
+// WebView sitting in the tree — even hidden — is a known cause of the native
+// keyboard randomly losing/regaining focus on unrelated TextInputs elsewhere
+// in the app. Keeping it out of the Auth stack entirely (Login/SignUp/
+// ForgotPassword) means that WebView simply doesn't exist until someone is
+// actually logged in and browsing the app.
 
 const Tab = createBottomTabNavigator();
 
@@ -65,16 +82,18 @@ const CustomTabBar = ({ state, descriptors, navigation }: any) => {
 };
 
 export const MainTabNavigator = () => (
-  <Tab.Navigator
-    tabBar={(props) => <CustomTabBar {...props} />}
-    screenOptions={{ headerShown: false }}
-  >
-    <Tab.Screen name="HomeTab" component={HomeStack} />
-    <Tab.Screen name="ExploreTab" component={ExploreStack} />
-    <Tab.Screen name="NightTab" component={ItineraryStack} />
-    <Tab.Screen name="BookingsTab" component={BookingsStack} />
-    <Tab.Screen name="ProfileTab" component={ProfileStack} />
-  </Tab.Navigator>
+  <PaystackProvider publicKey={PAYSTACK_PUBLIC_KEY} defaultChannels={['card', 'bank_transfer', 'ussd']}>
+    <Tab.Navigator
+      tabBar={(props) => <CustomTabBar {...props} />}
+      screenOptions={{ headerShown: false }}
+    >
+      <Tab.Screen name="HomeTab" component={HomeStack} />
+      <Tab.Screen name="ExploreTab" component={ExploreStack} />
+      <Tab.Screen name="NightTab" component={ItineraryStack} />
+      <Tab.Screen name="BookingsTab" component={BookingsStack} />
+      <Tab.Screen name="ProfileTab" component={ProfileStack} />
+    </Tab.Navigator>
+  </PaystackProvider>
 );
 
 const styles = StyleSheet.create({

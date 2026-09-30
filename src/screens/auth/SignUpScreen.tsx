@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, KeyboardAvoidingView, Platform, ScrollView, TextInput } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { GoldInput } from '../../components/GoldInput';
 import { GoldButton } from '../../components/GoldButton';
@@ -16,6 +16,10 @@ export const SignUpScreen = ({ navigation }: any) => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isPending, setIsPending] = useState(false);
   const login = useStore((s) => s.login);
+  const lastNameRef = useRef<TextInput>(null);
+  const emailRef = useRef<TextInput>(null);
+  const passwordRef = useRef<TextInput>(null);
+  const confirmPasswordRef = useRef<TextInput>(null);
 
   const handleSignUp = async () => {
     if (password !== confirmPassword) return Alert.alert('Error', 'Passwords do not match');
@@ -59,34 +63,52 @@ export const SignUpScreen = ({ navigation }: any) => {
                 onChangeText={setFirstName}
                 autoCapitalize="words"
                 style={styles.nameInput}
+                returnKeyType="next"
+                blurOnSubmit={false}
+                onSubmitEditing={() => lastNameRef.current?.focus()}
               />
               <GoldInput
+                ref={lastNameRef}
                 placeholder="Last name"
                 value={lastName}
                 onChangeText={setLastName}
                 autoCapitalize="words"
                 style={styles.nameInput}
+                returnKeyType="next"
+                blurOnSubmit={false}
+                onSubmitEditing={() => emailRef.current?.focus()}
               />
             </View>
             <GoldInput
+              ref={emailRef}
               placeholder="Email address"
               iconName="envelope"
               value={email}
               onChangeText={setEmail}
               keyboardType="email-address"
               autoCapitalize="none"
+              returnKeyType="next"
+              blurOnSubmit={false}
+              onSubmitEditing={() => passwordRef.current?.focus()}
             />
             <GoldInput
+              ref={passwordRef}
               placeholder="Password"
               isPassword
               value={password}
               onChangeText={setPassword}
+              returnKeyType="next"
+              blurOnSubmit={false}
+              onSubmitEditing={() => confirmPasswordRef.current?.focus()}
             />
             <GoldInput
+              ref={confirmPasswordRef}
               placeholder="Confirm Password"
               isPassword
               value={confirmPassword}
               onChangeText={setConfirmPassword}
+              returnKeyType="done"
+              onSubmitEditing={handleSignUp}
             />
           </View>
 

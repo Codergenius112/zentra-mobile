@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -26,6 +26,8 @@ export default function ForgotPasswordScreen({ navigation }: any) {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const newPasswordRef = useRef<TextInput>(null);
+  const confirmPasswordRef = useRef<TextInput>(null);
 
   const handleRequestReset = async () => {
     if (!email.trim()) {
@@ -114,6 +116,8 @@ export default function ForgotPasswordScreen({ navigation }: any) {
           keyboardType="email-address"
           autoCapitalize="none"
           autoCorrect={false}
+          returnKeyType="send"
+          onSubmitEditing={handleRequestReset}
         />
       </View>
       <TouchableOpacity onPress={handleRequestReset} activeOpacity={0.85} disabled={loading}>
@@ -143,11 +147,15 @@ export default function ForgotPasswordScreen({ navigation }: any) {
           value={token}
           onChangeText={setToken}
           autoCapitalize="none"
+          returnKeyType="next"
+          blurOnSubmit={false}
+          onSubmitEditing={() => newPasswordRef.current?.focus()}
         />
       </View>
       <View style={styles.inputWrapper}>
         <FontAwesome6 name="lock" size={15} color="rgba(255,255,255,0.35)" style={styles.inputIcon} />
         <TextInput
+          ref={newPasswordRef}
           style={[styles.input, { paddingRight: 46 }]}
           placeholder="New Password"
           placeholderTextColor="rgba(255,255,255,0.28)"
@@ -155,6 +163,9 @@ export default function ForgotPasswordScreen({ navigation }: any) {
           onChangeText={setNewPassword}
           secureTextEntry={!showPassword}
           autoCapitalize="none"
+          returnKeyType="next"
+          blurOnSubmit={false}
+          onSubmitEditing={() => confirmPasswordRef.current?.focus()}
         />
         <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeBtn}>
           <FontAwesome6 name={showPassword ? 'eye-slash' : 'eye'} size={15} color="rgba(255,255,255,0.35)" />
@@ -163,6 +174,7 @@ export default function ForgotPasswordScreen({ navigation }: any) {
       <View style={styles.inputWrapper}>
         <FontAwesome6 name="shield-halved" size={15} color="rgba(255,255,255,0.35)" style={styles.inputIcon} />
         <TextInput
+          ref={confirmPasswordRef}
           style={styles.input}
           placeholder="Confirm New Password"
           placeholderTextColor="rgba(255,255,255,0.28)"
@@ -170,6 +182,8 @@ export default function ForgotPasswordScreen({ navigation }: any) {
           onChangeText={setConfirmPassword}
           secureTextEntry={!showPassword}
           autoCapitalize="none"
+          returnKeyType="done"
+          onSubmitEditing={handleResetPassword}
         />
       </View>
       <View style={styles.passwordHint}>

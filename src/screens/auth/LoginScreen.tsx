@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, KeyboardAvoidingView, Platform } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, KeyboardAvoidingView, Platform, TextInput } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { GoldInput } from '../../components/GoldInput';
 import { GoldButton } from '../../components/GoldButton';
@@ -13,6 +13,7 @@ export const LoginScreen = ({ navigation }: any) => {
   const [password, setPassword] = useState('');
   const [isPending, setIsPending] = useState(false);
   const login = useStore((s) => s.login);
+  const passwordRef = useRef<TextInput>(null);
 
   const handleLogin = async () => {
     setIsPending(true);
@@ -53,12 +54,18 @@ export const LoginScreen = ({ navigation }: any) => {
             onChangeText={setEmail}
             keyboardType="email-address"
             autoCapitalize="none"
+            returnKeyType="next"
+            // blurOnSubmit={false}
+            onSubmitEditing={() => passwordRef.current?.focus()}
           />
           <GoldInput
+            ref={passwordRef}
             placeholder="Password"
             isPassword
             value={password}
             onChangeText={setPassword}
+            returnKeyType="done"
+            onSubmitEditing={handleLogin}
           />
           <TouchableOpacity style={styles.forgotWrap} onPress={() => navigation.navigate('ForgotPassword')}>
             <Text style={styles.forgot}>Forgot Password?</Text>

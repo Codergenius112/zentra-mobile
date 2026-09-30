@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { forwardRef, useState } from 'react';
 import { View, TextInput, TouchableOpacity, StyleSheet, TextInputProps } from 'react-native';
 import { FontAwesome6 as Icon } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
@@ -8,27 +8,38 @@ interface GoldInputProps extends TextInputProps {
   isPassword?: boolean;
 }
 
-export const GoldInput: React.FC<GoldInputProps> = ({
-  iconName, isPassword, style, ...props
-}) => {
+export const GoldInput = forwardRef<TextInput, GoldInputProps>(({
+  iconName, isPassword, style, onFocus, onBlur, ...props
+}, ref) => {
   const [focused, setFocused] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+
+  const handleFocus: TextInputProps['onFocus'] = (e) => {
+    setFocused(true);
+    onFocus?.(e);
+  };
+
+  const handleBlur: TextInputProps['onBlur'] = (e) => {
+    setFocused(false);
+    onBlur?.(e);
+  };
 
   return (
     <View style={[
       styles.container,
-      focused && styles.focused,
+      // focused && styles.focused,
       style as any,
     ]}>
       {iconName && (
         <Icon name={iconName} size={16} color={colors.textMuted} style={styles.icon} />
       )}
       <TextInput
+        ref={ref}
         style={styles.input}
         placeholderTextColor={colors.textMuted}
         secureTextEntry={isPassword && !showPassword}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
+        onFocus={handleFocus}
+        onBlur={handleBlur}
         {...props}
       />
       {isPassword && (
@@ -42,7 +53,7 @@ export const GoldInput: React.FC<GoldInputProps> = ({
       )}
     </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {
