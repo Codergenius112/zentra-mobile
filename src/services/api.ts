@@ -21,9 +21,15 @@ import type { AuthUser } from '../store/useStore';
  *
  *   events        -> { events }          bookings      -> { bookings }
  *   venues        -> { data }   (!)      notifications -> { notifications, unreadCount }
- *   cars          -> { listings }        itinerary     -> { items }
- *   apartments    -> { listings }        wallet txs    -> { entries }
+ *   cars          -> { listings, total }  itinerary     -> { items }
+ *   apartments    -> { listings, total }  wallet txs    -> { entries }
  *   tables        -> { tables }          menu          -> BARE ARRAY (!)
+ *
+ * The bare `/cars` and `/apartments` routes are NOT catalogues: for a signed-in
+ * customer they answer { rentals, total } and { bookings, total } — the user's
+ * OWN history. Reading `.listings` off those yields undefined, which asArray
+ * turns into [], so every screen showed "No cars available" / "Nothing matches"
+ * against a backend that had listings. The catalogues live under `/listings`.
  *
  * Endpoints returning a single entity return it DIRECTLY, not wrapped:
  * getEventById, getVenueById, getListing, getBooking, getBookingById, getTicket,
@@ -32,6 +38,7 @@ import type { AuthUser } from '../store/useStore';
  * ── Endpoint table ──────────────────────────────────────────────────────────
  * POST  /auth/login                      [inferred]   authAPI.login
  * POST  /auth/register                   [inferred]   authAPI.register
+ * POST  /auth/refresh                    [verified]  silent token refresh (interceptor only; 60-min access, 7-day refresh tokens, rotating)
  * POST  /auth/forgot-password            [inferred]   authAPI.forgotPassword
  * POST  /auth/reset-password             [inferred]   authAPI.resetPassword
  * GET   /events                          [inferred]   eventsAPI.getEvents
@@ -42,13 +49,13 @@ import type { AuthUser } from '../store/useStore';
  * GET   /tables/event/:eventId           [documented] tableListingsAPI.getEventTables
  * POST  /tables                          [documented] tablesAPI.bookTable
  * GET   /tables/:id                      [documented] tablesAPI.getBooking
- * GET   /apartments                      [inferred]   apartmentsAPI.getListings
- * GET   /apartments/:id                  [inferred]   apartmentsAPI.getListing
- * POST  /apartments/book                 [inferred]   apartmentsAPI.bookApartment
- * GET   /cars                            [inferred]   carsAPI.getListings
- * GET   /cars/:id                        [inferred]   carsAPI.getListing
- * POST  /cars/rent                       [inferred]   carsAPI.rentCar
- * GET   /bookings/me                     [inferred]   bookingsAPI.getMyBookings
+ * GET   /apartments/listings             [verified]   apartmentsAPI.getListings — NOT /apartments
+ * GET   /apartments/listings/:id         [verified]   apartmentsAPI.getListing
+ * POST  /apartments                      [verified]   apartmentsAPI.bookApartment — bare /apartments is the booking POST (there is no /apartments/book)
+ * GET   /cars/listings                   [verified]   carsAPI.getListings — NOT /cars
+ * GET   /cars/listings/:id               [verified]   carsAPI.getListing
+ * POST  /cars                            [verified]   carsAPI.rentCar — bare /cars is the rental POST (there is no /cars/rent)
+ * GET   /bookings                        [verified]   bookingsAPI.getMyBookings — NOT /bookings/me
  * GET   /bookings/:id                    [inferred]   bookingsAPI.getBookingById
  * POST  /bookings/group                  [inferred]   bookingsAPI.createGroupBooking
  * GET   /notifications/me                [inferred]   notificationsAPI.getMyNotifications
@@ -66,7 +73,7 @@ import type { AuthUser } from '../store/useStore';
  * PATCH /tickets/:id/cancel              [documented] ticketsAPI.cancelTicket
  * GET   /wallet                          [inferred]   walletAPI.getWallet
  * GET   /wallet/transactions             [inferred]   walletAPI.getTransactions
- * POST  /wallet/fund                     [inferred]   walletAPI.fundWallet
+ * POST  /wallet/fund                     [documented] walletAPI.fundWallet
  * POST  /payments/verify                 [inferred]   paymentsAPI.verifyPayment — PURE GUESS, no surviving evidence
  * ─────────────────────────────────────────────────────────────────────────────
  */
@@ -81,19 +88,93 @@ export const SERVICE_CHARGE = 400;
 
 const client = axios.create({ baseURL: API_URL, timeout: 20000 });
 
+// Bare axios instance for the refresh call: no request interceptor (it must not
+// send the dead access token) and no response interceptor (its own 401 must not
+// trigger a second refresh attempt).
+const refreshClient = axios.create({ baseURL: API_URL, timeout: 15000 });
+
+// Endpoints that must never be retried behind a refresh — a 401 from login is a
+// wrong password, not an expired session, and refreshing there would loop.
+const NO_REFRESH_PATHS = [
+  '/auth/login',
+  '/auth/register',
+  '/auth/forgot-password',
+  '/auth/reset-password',
+  '/auth/refresh',
+];
+
 client.interceptors.request.use((config) => {
   const token = useStore.getState().accessToken;
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 
-// Deliberately NO response interceptor that logs out on 401. Swapping
-// RootNavigator to the Auth stack mid-checkout would eject the user from
-// PaymentScreen in the middle of a transaction — the worst possible moment.
-// The cost is that an expired token surfaces as per-screen ErrorStates until
-// the user signs out from Profile, which is the better trade.
+// In-flight refresh, shared so a screen that fires five parallel requests on an
+// expired token performs ONE refresh round-trip, not five. The backend rotates
+// the refresh token but does not revoke the previous one, so this is a latency
+// guard rather than a correctness one — with it, the store also settles on a
+// single token pair instead of racing five writers over it.
+let refreshInFlight: Promise<string> | null = null;
+
+const refreshAccessToken = (): Promise<string> => {
+  if (refreshInFlight) return refreshInFlight;
+
+  const refreshToken = useStore.getState().refreshToken;
+  if (!refreshToken) return Promise.reject(new Error('No refresh token'));
+
+  refreshInFlight = refreshClient
+    .post('/auth/refresh', { refreshToken })
+    .then((r) => {
+      const accessToken = r.data?.accessToken;
+      if (!accessToken) throw new Error('Refresh response missing accessToken');
+      useStore.getState().setTokens(String(accessToken), r.data?.refreshToken ?? null);
+      return String(accessToken);
+    })
+    .finally(() => {
+      refreshInFlight = null;
+    });
+
+  return refreshInFlight;
+};
+
+// Deliberately NO "logout on 401". Swapping RootNavigator to the Auth stack
+// mid-checkout would eject the user from PaymentScreen in the middle of a
+// transaction — the worst possible moment. Instead, a 401 is treated as what it
+// almost always is: an expired 60-minute access token on a session that is still
+// valid for 7 more days. Refresh once, replay the original request with the new
+// token, and the user never sees a thing. If the refresh itself fails the
+// original error is passed through untouched, so a genuinely dead session
+// surfaces as a per-screen ErrorState until the user signs out from Profile —
+// the same trade the previous comment described, minus the false alarms.
 //
-// Errors are passed through untouched: consumers read `err?.response?.data?.message`.
+// Consumers still read `err?.response?.data?.message`, so retried and failed
+// attempts are indistinguishable from any other error.
+client.interceptors.response.use(undefined, async (error) => {
+  const config: any = error?.config;
+  const status = error?.response?.status;
+  const url: string = config?.url ?? '';
+
+  const refreshable =
+    status === 401 &&
+    config &&
+    !config._retried &&
+    !NO_REFRESH_PATHS.some((p) => url.includes(p)) &&
+    !!useStore.getState().refreshToken;
+
+  if (!refreshable) return Promise.reject(error);
+
+  config._retried = true;
+  try {
+    const token = await refreshAccessToken();
+    config.headers = config.headers ?? {};
+    config.headers.Authorization = `Bearer ${token}`;
+    return await client.request(config);
+  } catch {
+    // Expired refresh token, network failure, or a backend that refused.
+    // Reject with the ORIGINAL 401 so screens keep reporting the real status.
+    return Promise.reject(error);
+  }
+});
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 // Rebuilt field-by-field from property accesses in the surviving screens.
@@ -280,8 +361,14 @@ export interface PaymentVerification {
   verified: boolean;
   status: string;
   reference: string;
-  booking?: BackendBooking;
-  message?: string;
+  amountNaira?: number;
+}
+
+export interface PaymentTransactionResult {
+  id: string;
+  bookingId: string;
+  status: string;
+  amount: number;
 }
 
 // ─── Response normalization helpers ──────────────────────────────────────────
@@ -393,13 +480,14 @@ export const tablesAPI = {
 // ─── Apartments / stays ──────────────────────────────────────────────────────
 
 export const apartmentsAPI = {
+  // /apartments is this customer's own booking history — the catalogue is here.
   getListings: (params?: { limit?: number }): Promise<{ listings: ApartmentListing[] }> =>
     client
-      .get('/apartments', { params })
+      .get('/apartments/listings', { params })
       .then((r) => ({ listings: asArray<ApartmentListing>(r.data?.listings) })),
 
   getListing: (id: string): Promise<ApartmentListing> =>
-    client.get(`/apartments/${id}`).then((r) => r.data?.apartment ?? r.data),
+    client.get(`/apartments/listings/${id}`).then((r) => r.data?.apartment ?? r.data),
 
   bookApartment: (payload: {
     apartmentId: string;
@@ -407,19 +495,20 @@ export const apartmentsAPI = {
     checkOutDate: string;
     price: number;
   }): Promise<BackendBooking> =>
-    client.post('/apartments/book', payload).then((r) => r.data?.booking ?? r.data),
+    client.post('/apartments', payload).then((r) => r.data?.booking ?? r.data),
 };
 
 // ─── Cars / rides ────────────────────────────────────────────────────────────
 
 export const carsAPI = {
+  // /cars is this customer's own rental history — the catalogue is here.
   getListings: (params?: { limit?: number }): Promise<{ listings: CarListing[] }> =>
     client
-      .get('/cars', { params })
+      .get('/cars/listings', { params })
       .then((r) => ({ listings: asArray<CarListing>(r.data?.listings) })),
 
   getListing: (id: string): Promise<CarListing> =>
-    client.get(`/cars/${id}`).then((r) => r.data?.car ?? r.data),
+    client.get(`/cars/listings/${id}`).then((r) => r.data?.car ?? r.data),
 
   rentCar: (payload: {
     carId: string;
@@ -429,7 +518,7 @@ export const carsAPI = {
     driverLicense: string;
     pickupLocation: string;
   }): Promise<BackendBooking> =>
-    client.post('/cars/rent', payload).then((r) => r.data?.booking ?? r.data),
+    client.post('/cars', payload).then((r) => r.data?.booking ?? r.data),
 };
 
 // ─── Bookings ────────────────────────────────────────────────────────────────
@@ -454,7 +543,7 @@ export interface GroupBookingPayload {
 export const bookingsAPI = {
   getMyBookings: (params?: { limit?: number }): Promise<{ bookings: BackendBooking[] }> =>
     client
-      .get('/bookings/me', { params })
+     .get('/bookings', { params })
       .then((r) => ({ bookings: asArray<BackendBooking>(r.data?.bookings) })),
 
   getBookingById: (id: string): Promise<BackendBooking> =>
@@ -472,7 +561,7 @@ export const notificationsAPI = {
   getMyNotifications: (
     params?: { limit?: number },
   ): Promise<{ notifications: AppNotification[]; unreadCount: number }> =>
-    client.get('/notifications/me', { params }).then((r) => ({
+    client.get('/notifications/my', { params }).then((r) => ({
       notifications: asArray<AppNotification>(r.data?.notifications),
       unreadCount: Number(r.data?.unreadCount ?? 0),
     })),
@@ -487,7 +576,7 @@ export const notificationsAPI = {
 
 export const itineraryAPI = {
   getMyItinerary: (): Promise<{ items: ItineraryItem[] }> =>
-    client.get('/itinerary/me').then((r) => ({ items: asArray<ItineraryItem>(r.data?.items) })),
+    client.get('/itinerary').then((r) => ({ items: asArray<ItineraryItem>(r.data?.items) })),
 };
 
 // ─── Queues ──────────────────────────────────────────────────────────────────
@@ -499,7 +588,7 @@ export const queuesAPI = {
   getQueuePosition: (
     queueId: string,
   ): Promise<{ position: number; status: string; createdAt: string }> =>
-    client.get(`/queues/${queueId}`).then((r) => {
+   client.get(`/queues/position/${queueId}`).then((r) => {
       const d = r.data?.queue ?? r.data ?? {};
       return {
         position: Number(d.position ?? 0),
@@ -509,10 +598,10 @@ export const queuesAPI = {
     }),
 
   checkIn: (queueId: string): Promise<QueueEntry> =>
-    client.post(`/queues/${queueId}/check-in`).then((r) => r.data?.queue ?? r.data),
+    client.post(`/queues/${queueId}/checkin`).then((r) => r.data?.queue ?? r.data),
 
   cancel: (queueId: string): Promise<any> =>
-    client.patch(`/queues/${queueId}/cancel`).then((r) => r.data),
+    client.post(`/queues/${queueId}/cancel`).then((r) => r.data),
 };
 
 // ─── Menu & orders ───────────────────────────────────────────────────────────
@@ -570,33 +659,50 @@ export const walletAPI = {
       .get('/wallet/transactions')
       .then((r) => ({ entries: asArray<WalletTransaction>(r.data?.entries) })),
 
-  // Verified by Paystack reference — the same pattern WalletScreen already uses
-  // for popup.checkout's onSuccess.
-  fundWallet: (amount: number, reference?: string): Promise<{ balance: number; message: string }> =>
-    client.post('/wallet/fund', { amount, reference }).then((r) => ({
+   // The backend independently re-verifies paystackReference with Paystack
+  // itself and derives the real credited amount from that — amount here is
+  // sent along for the backend's own display/logging convenience only and
+  // is never trusted as the source of truth (see WalletService.fundViaPaystack).
+  // Field name matters: the backend reads paystackReference specifically —
+  // this used to send `reference`, which meant the real reference was
+  // always undefined server-side regardless of what was typed here.
+  fundWallet: (amount: number, paystackReference: string): Promise<{ balance: number; message: string }> =>
+    client.post('/wallet/fund', { amount, paystackReference }).then((r) => ({
       balance: Number(r.data?.balance ?? 0),
       message: String(r.data?.message ?? 'Wallet funded.'),
     })),
 };
-
 // ─── Payments ────────────────────────────────────────────────────────────────
 // The only call that is polymorphic across all four booking types and not a
 // booking mutation, which is why it gets its own namespace rather than joining
 // bookingsAPI (whose surviving surface is read-only).
 
 export const paymentsAPI = {
-  // Confirms a Paystack reference server-side. PaymentScreen retries this and
-  // also polls bookingsAPI.getBookingById as a fallback, because the Paystack
-  // webhook usually lands even when this endpoint is unavailable.
-  verifyPayment: (reference: string, bookingId: string): Promise<PaymentVerification> =>
-    client.post('/payments/verify', { reference, bookingId }).then((r) => {
+  // Confirms a Paystack reference server-side. bookingId is accepted for
+  // callers that want it threaded through but isn't sent to the backend —
+  // the real endpoint verifies by reference alone.
+  verifyPayment: (reference: string, _bookingId?: string): Promise<PaymentVerification> =>
+    client.post('/payments/paystack/verify', { reference }).then((r) => {
       const d = r.data ?? {};
       return {
         verified: d.verified === true || d.status === 'success',
         status: String(d.status ?? 'unknown'),
         reference: String(d.reference ?? reference),
-        booking: d.booking,
-        message: d.message,
+        amountNaira: typeof d.amountNaira === 'number' ? d.amountNaira : undefined,
       };
     }),
+
+  // Records the payment and confirms the booking server-side. Previously
+  // nothing ever called this after a Paystack charge — confirmation relied
+  // entirely on the webhook, which had no way to find the booking (see the
+  // backend's paystack-webhook.controller.ts comments). PaymentScreen now
+  // calls this right after verifyPayment succeeds, so confirmation no longer
+  // depends on the webhook arriving at all.
+  processPayment: (payload: {
+    bookingId: string;
+    amount: number;
+    method: 'wallet' | 'paystack';
+    paystackReference?: string;
+  }): Promise<PaymentTransactionResult> =>
+    client.post('/payments', payload).then((r) => r.data),
 };

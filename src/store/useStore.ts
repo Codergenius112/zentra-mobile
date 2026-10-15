@@ -40,6 +40,9 @@ interface StoreState {
   hasHydrated: boolean;
 
   login: (user: AuthUser, accessToken: string, refreshToken: string) => void;
+  // Swap tokens in place after a silent refresh, leaving user/isAuthenticated
+  // untouched — a refresh must never look like a re-login to the UI.
+  setTokens: (accessToken: string, refreshToken: string | null) => void;
   logout: () => void;
   addBooking: (booking: StoredBooking) => void;
   setWalletBalance: (balance: number) => void;
@@ -60,6 +63,14 @@ export const useStore = create<StoreState>()(
       // and SignUpScreen deliberately navigate nowhere after calling it.
       login: (user, accessToken, refreshToken) =>
         set({ user, accessToken, refreshToken, isAuthenticated: true }),
+
+      setTokens: (accessToken, refreshToken) =>
+        set((state) => ({
+          accessToken,
+          // Keep the existing refresh token if the backend did not rotate it —
+          // clobbering it with null would strand the session unrenewable.
+          refreshToken: refreshToken ?? state.refreshToken,
+        })),
 
       logout: () =>
         set({

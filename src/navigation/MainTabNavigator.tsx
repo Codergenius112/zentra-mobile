@@ -3,7 +3,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { FontAwesome6 as Icon } from '@expo/vector-icons';
-import { PaystackProvider } from 'react-native-paystack-webview';
+import { PaystackProvider } from '../paystack/PaystackProvider';
 import { HomeStack } from './HomeStack';
 import { ExploreStack } from './ExploreStack';
 import { ItineraryStack } from './ItineraryStack';
@@ -18,14 +18,18 @@ import { colors } from '../theme/colors';
 // missing key reports itself instead of failing silently.
 const PAYSTACK_PUBLIC_KEY = process.env.EXPO_PUBLIC_PAYSTACK_KEY || '';
 
-// Scoped here rather than at the App.tsx root: PaystackProvider permanently
-// mounts a background WebView the moment it renders (used by WalletScreen and
-// PaymentScreen, both only reachable from this authenticated tab tree). A
-// WebView sitting in the tree — even hidden — is a known cause of the native
+// Scoped here rather than at the App.tsx root. This is the project's own
+// PaystackProvider (src/paystack/PaystackProvider.tsx) — it deliberately
+// mounts a WebView for the app's entire lifetime and preloads Paystack's
+// inline.js at boot, to kill checkout's cold-start lag (see the comment block
+// at the top of that file). That permanently-live WebView — actively loading
+// a remote script, not just sitting empty — is a known cause of the native
 // keyboard randomly losing/regaining focus on unrelated TextInputs elsewhere
-// in the app. Keeping it out of the Auth stack entirely (Login/SignUp/
-// ForgotPassword) means that WebView simply doesn't exist until someone is
-// actually logged in and browsing the app.
+// in the app. Scoping it here keeps it out of the Auth stack entirely
+// (Login/SignUp/ForgotPassword), so that WebView doesn't exist until someone
+// is actually logged in — it starts warming up right after login instead of
+// from app boot, which is a fine trade-off since no one pays within their
+// first second in the app anyway.
 
 const Tab = createBottomTabNavigator();
 

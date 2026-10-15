@@ -317,31 +317,66 @@ export const PaymentScreen = ({ route, navigation }: any) => {
     if (id) navigation.replace('BookingConfirmation', { bookingId: id });
   }, [navigation]);
 
-  // The Paystack webhook usually lands before our own verify endpoint answers,
-  // so re-reading the booking is the more reliable signal — and it reuses a
-  // method that already exists rather than depending on a guessed one.
-  const verifyWithRetries = useCallback(async (bookingId: string, reference: string): Promise<boolean> => {
-    for (const delay of [0, 1500, 3000]) {
+  // Closes the loop ourselves rather than depending on the Paystack webhook:
+  // verify the reference server-side, then actually call POST /payments to
+  // record it and confirm the booking (this is also what sends the receipt /
+  // ticket QR email — nothing did either before). processPayment is
+  // idempotent, so this stays safe even if the webhook's own metadata
+  // fallback (paystack-webhook.controller.ts) wins the race and confirms
+  // first — re-reading the booking below just finds it already paid.
+  //
+  // Delays total ~4 minutes, not ~4.5 seconds: card payments confirm almost
+  // immediately, but bank_transfer/ussd (both enabled in PAYSTACK_PUBLIC_KEY's
+  // defaultChannels) routinely take 1-4 minutes for the bank to confirm —
+  // the old [0, 1500, 3000] window declared those "unresolved" by design,
+  // not because anything was actually wrong.
+  const RETRY_DELAYS_MS = [0, 2000, 3000, 5000, 10000, 15000, 20000, 30000, 30000, 30000, 30000, 30000];
+
+  const verifyWithRetries = useCallback(async (bookingId: string, reference: string, amount: number): Promise<boolean> => {
+    let confirmAttempted = false;
+
+    for (const delay of RETRY_DELAYS_MS) {
       if (!mountedRef.current) return false;
       if (delay > 0) await sleep(delay);
       if (!mountedRef.current) return false;
 
+      // Catches the case where the webhook (or an earlier pass of this same
+      // loop) already confirmed it — cheapest check, so try it first.
       try {
         if (isPaid(await bookingsAPI.getBookingById(bookingId))) return true;
       } catch {}
 
       try {
         const v = await paymentsAPI.verifyPayment(reference, bookingId);
-        if (v.verified || isPaid(v.booking)) return true;
+        if (v.verified) {
+          if (!confirmAttempted) {
+            // Only need to actually try this once — if it fails (e.g. a
+            // transient network error), later passes of this loop will keep
+            // finding the booking unpaid via getBookingById above and retry
+            // naturally without re-flagging confirmAttempted.
+            confirmAttempted = true;
+            try {
+              await paymentsAPI.processPayment({
+                bookingId,
+                amount,
+                method: 'paystack',
+                paystackReference: reference,
+              });
+              return true;
+            } catch {
+              confirmAttempted = false;
+            }
+          }
+        }
       } catch {}
     }
     return false;
   }, []);
 
-  const handlePaid = useCallback(async (bookingId: string, reference: string) => {
+  const handlePaid = useCallback(async (bookingId: string, reference: string, amount: number) => {
     if (!mountedRef.current) return;
     setPhase('verifying');
-    const confirmed = await verifyWithRetries(bookingId, reference);
+    const confirmed = await verifyWithRetries(bookingId, reference, amount);
     if (!mountedRef.current) return;
 
     if (confirmed) {
@@ -450,7 +485,7 @@ export const PaymentScreen = ({ route, navigation }: any) => {
       onSuccess: async (res: any) => {
         const ref = res?.reference ? String(res.reference) : referenceRef.current!;
         referenceRef.current = ref;
-        await handlePaid(held.id, ref);
+        await handlePaid(held.id, ref, held.amount);
       },
       onCancel: () => {
         if (!mountedRef.current) return;
@@ -471,8 +506,9 @@ export const PaymentScreen = ({ route, navigation }: any) => {
     });
   }, [intent, user?.email, createBooking, addBooking, popup, handlePaid, playResultAnimation]);
 
-  // A silently dismissed modal is UNKNOWN, not cancelled — the only way to cover
-  // the fact that onError never fires.
+  // A silently dismissed modal is UNKNOWN, not cancelled — covers the case
+  // where onError isn't wired up above (see the comment on that prop) and the
+  // user instead just closes the payment window without a clear result.
   const handleWindowClosed = useCallback(async () => {
     const held = bookingRef.current;
     if (!held) {
@@ -480,7 +516,7 @@ export const PaymentScreen = ({ route, navigation }: any) => {
       return;
     }
     if (referenceRef.current) {
-      await handlePaid(held.id, referenceRef.current);
+      await handlePaid(held.id, referenceRef.current, held.amount);
     } else {
       setFailureReason('The payment window closed before returning a result. Nothing was charged.');
       setPhase('failed');
@@ -588,7 +624,7 @@ export const PaymentScreen = ({ route, navigation }: any) => {
     const subtitle = isSuccess
       ? `₦${formatNaira(bookingRef.current?.amount ?? total)} paid`
       : isUnresolved
-        ? 'Your card was charged, but we could not confirm it with our server. This usually resolves on its own within a few minutes.'
+        ? "Your payment went through, but we're still waiting on confirmation after several minutes — longer than usual, even for bank transfer. Your money is safe either way; tap below to check again, or come back later and find it in My Bookings."
         : failureReason || 'Your payment did not go through. Nothing was charged.';
 
     return (
@@ -670,7 +706,7 @@ export const PaymentScreen = ({ route, navigation }: any) => {
                       title="Re-check Payment"
                       onPress={() => {
                         const held = bookingRef.current;
-                        if (held && referenceRef.current) handlePaid(held.id, referenceRef.current);
+                        if (held && referenceRef.current) handlePaid(held.id, referenceRef.current, held.amount);
                       }}
                       style={{ marginBottom: 12 }}
                     />
@@ -735,7 +771,7 @@ export const PaymentScreen = ({ route, navigation }: any) => {
                     : 'Confirming your payment…'}
               </Text>
 
-              {/* onError never fires in this library version, so a silently
+              {/* onError is intentionally left unused above, so a silently
                   dismissed modal would otherwise hang on this spinner forever. */}
               {phase === 'charging' && (
                 <TouchableOpacity style={styles.escapeBtn} onPress={handleWindowClosed}>

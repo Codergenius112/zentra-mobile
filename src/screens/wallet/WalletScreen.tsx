@@ -18,10 +18,15 @@ import { formatNaira } from '../../utils/formatNaira';
 
 const quickAmounts = [5000, 10000, 20000, 50000];
 
+// Keyed off what FinancialLedger.transactionType actually contains —
+// 'CREDIT' / 'DEBIT' only (see payments.service.ts, wallet.service.ts,
+// paystack-webhook.controller.ts). The previous keys (WALLET_CREDIT/
+// WALLET_DEBIT/WALLET_TRANSFER) never matched any real ledger row, so every
+// transaction silently fell through to the WALLET_DEBIT fallback below —
+// every entry showed as a red debit regardless of whether it was a credit.
 const txConfig: Record<string, { icon: string; color: string; sign: '+' | '−' }> = {
-  WALLET_CREDIT:   { icon: 'arrow-down', color: '#2ECC71', sign: '+' },
-  WALLET_DEBIT:    { icon: 'arrow-up',   color: '#F87171', sign: '−' },
-  WALLET_TRANSFER: { icon: 'right-left', color: colors.goldMid, sign: '−' },
+  CREDIT: { icon: 'arrow-down', color: '#2ECC71', sign: '+' },
+  DEBIT:  { icon: 'arrow-up',   color: '#F87171', sign: '−' },
 };
 
 export const WalletScreen = ({ navigation }: any) => {
@@ -67,13 +72,14 @@ export const WalletScreen = ({ navigation }: any) => {
       return;
     }
     setIsFunding(true);
+    const reference = `ZTR-WALLET-${Date.now()}`;
     popup.checkout({
       email: user?.email ?? '',
       amount: amountToFund,
-      reference: `ZTR-WALLET-${Date.now()}`,
+      reference,
       onSuccess: async (res: any) => {
         try {
-          const result = await walletAPI.fundWallet(amountToFund, res?.reference);
+          const result = await walletAPI.fundWallet(amountToFund, res?.reference ?? reference);
           setWalletBalance(result.balance);
           setModalVisible(false);
           setSelectedAmount(null);
@@ -155,7 +161,7 @@ export const WalletScreen = ({ navigation }: any) => {
             contentContainerStyle={styles.list}
             showsVerticalScrollIndicator={false}
             renderItem={({ item }) => {
-              const config = txConfig[item.transactionType] ?? txConfig.WALLET_DEBIT;
+              const config = txConfig[item.transactionType] ?? txConfig.DEBIT;
               return (
                 <View style={styles.txRow}>
                   <View style={[styles.txIconWrap, { backgroundColor: `${config.color}18` }]}>
