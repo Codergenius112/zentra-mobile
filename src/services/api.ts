@@ -228,6 +228,30 @@ export interface CarListing {
   unavailableDates?: string[] | null;
 }
 
+export interface JetListing {
+  id: string;
+  name: string;
+  model: string;
+  manufacturer: string;
+  category: string;
+  tailNumber: string;
+  capacity: number;
+  rangeNauticalMiles?: number | null;
+  cruisingSpeedKnots?: number | null;
+  pricePerHour: number;
+  cautionFee: number;
+  cautionFeeRefundable?: boolean;
+  baseAirport: string;
+  city: string;
+  country: string;
+  description: string;
+  features: string[];
+  amenities: string[];
+  images?: string[];
+  unavailableDates?: string[] | null;
+  isActive: boolean;
+}
+
 export interface ApartmentListing {
   id: string;
   name: string;
@@ -519,6 +543,37 @@ export const carsAPI = {
     pickupLocation: string;
   }): Promise<BackendBooking> =>
     client.post('/cars', payload).then((r) => r.data?.booking ?? r.data),
+};
+
+// ─── Private Jets & Helicopters ──────────────────────────────────────────────
+
+export const jetsAPI = {
+  getListings: (params?: { category?: string; city?: string; limit?: number }): Promise<{ listings: JetListing[] }> =>
+    client
+      .get('/jets/listings', { params })
+      .then((r) => ({ listings: asArray<JetListing>(r.data?.listings ?? r.data?.data) })),
+
+  getListing: (id: string): Promise<JetListing> =>
+    client.get(`/jets/listings/${id}`).then((r) => r.data?.jet ?? r.data),
+
+  bookJet: (payload: {
+    jetId: string;
+    departureAirport: string;
+    arrivalAirport: string;
+    departureDate: string;
+    departureTime?: string;
+    returnDate?: string;
+    tripType?: 'ONE_WAY' | 'ROUND_TRIP';
+    passengerCount: number;
+    price: number;
+    specialRequests?: string;
+    contactName?: string;
+    contactPhone?: string;
+  }): Promise<BackendBooking> =>
+    client.post('/jets', payload).then((r) => r.data?.booking ?? r.data),
+
+  getMyBookings: (params?: { limit?: number; offset?: number }): Promise<{ bookings: BackendBooking[]; total: number }> =>
+    client.get('/jets/my-bookings', { params }).then((r) => r.data),
 };
 
 // ─── Bookings ────────────────────────────────────────────────────────────────

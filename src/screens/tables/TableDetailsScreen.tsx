@@ -131,9 +131,9 @@ export default function TableDetailsScreen({ route, navigation }: any) {
           <DetailRow icon="cash-outline"   label="Total"
             value={`₦${booking.totalAmount?.toLocaleString()}`} highlight />
           <DetailRow icon="card-outline"   label="Payment"
-            value={booking.paymentStatus?.replace(/_/g, ' ')} />
+            value={booking.paymentStatus ? booking.paymentStatus.replace(/_/g, ' ') : 'N/A'} />
           <DetailRow icon="receipt-outline" label="Booking ID"
-            value={booking.id?.slice(0,16) + '...'} />
+            value={booking.id ? (booking.id.slice(0,16) + '...') : 'N/A'} />
           <DetailRow icon="time-outline"   label="Booked On"
             value={formatDate(booking.createdAt)} />
         </View>
