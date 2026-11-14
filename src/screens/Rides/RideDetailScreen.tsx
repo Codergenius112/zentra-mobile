@@ -39,6 +39,7 @@ export const RideDetailScreen = ({ route, navigation }: any) => {
   const [duration, setDuration] = useState(durations[0]);
   const [driverLicense, setDriverLicense] = useState('');
   const [pickupLocation, setPickupLocation] = useState('');
+  const [withEscort, setWithEscort] = useState(false);
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -55,7 +56,8 @@ export const RideDetailScreen = ({ route, navigation }: any) => {
 
   useEffect(() => { load(); }, [load]);
 
-  const total = ride ? ride.pricePerDay * duration.days : 0;
+  const escortFee = (ride?.escortAvailable && withEscort) ? (Number(ride.escortPrice) || 0) : 0;
+  const total = ride ? ride.pricePerDay * duration.days + escortFee : 0;
   const canBook = !!pickupDate && driverLicense.trim().length >= 4 && pickupLocation.trim().length >= 3;
 
   const handleBook = async () => {
@@ -79,9 +81,10 @@ export const RideDetailScreen = ({ route, navigation }: any) => {
         carId: ride.id,
         pickupDate: pickupDate.date.toISOString(),
         returnDate: returnDate.toISOString(),
-        price: total,
+        price: ride.pricePerDay * duration.days,
         driverLicense: driverLicense.trim(),
         pickupLocation: pickupLocation.trim(),
+        withEscort,
       });
       navigation.navigate('Payment', {
         existingBookingId: booking.id,
@@ -153,12 +156,13 @@ export const RideDetailScreen = ({ route, navigation }: any) => {
             </View>
           </View>
 
-          {!!ride.businessName && (
-            <View style={styles.hostRow}>
-              <Icon name="building" size={11} color={colors.goldMid} />
-              <Text style={styles.hostText}>Offered by {ride.businessName}</Text>
-            </View>
-          )}
+            {!!ride.businessName && (
+              <View style={styles.providerBadge}>
+                <Icon name="building" size={11} color={colors.goldMid} />
+                <Text style={styles.providerLabel}>Offered by</Text>
+                <Text style={styles.providerName}>{ride.businessName}</Text>
+              </View>
+            )}
 
           <View style={styles.chipsRow}>
             {[
@@ -244,6 +248,29 @@ export const RideDetailScreen = ({ route, navigation }: any) => {
               />
             </View>
 
+            {!!ride.escortAvailable && (
+              <View style={styles.escortSection}>
+                <View style={styles.escortHeader}>
+                  <View>
+                    <Text style={styles.escortTitle}>🛡️ Add Escort / Security</Text>
+                    <Text style={styles.escortSub}>+₦{formatNaira(ride.escortPrice ?? 0)}</Text>
+                  </View>
+                  <TouchableOpacity
+                    style={[styles.escortToggle, withEscort && styles.escortToggleOn]}
+                    onPress={() => setWithEscort(v => !v)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.escortToggleText, withEscort && styles.escortToggleTextOn]}>
+                      {withEscort ? 'ON' : 'OFF'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+                <Text style={styles.escortDesc}>
+                  Armed security or escort vehicle accompanies your ride for the entire journey.
+                </Text>
+              </View>
+            )}
+
             <Text style={styles.subLabel}>Pickup Date</Text>
             <FlatList
               data={pickupOptions}
@@ -292,7 +319,7 @@ export const RideDetailScreen = ({ route, navigation }: any) => {
       <View style={[styles.bottomCta, { paddingBottom: 18 + insets.bottom }]}>
         <View style={styles.ctaSummary}>
           <Text style={styles.ctaPrice}>₦{formatNaira(total)}</Text>
-          <Text style={styles.ctaDuration}>{duration.label}</Text>
+          <Text style={styles.ctaDuration}>{duration.label}{withEscort ? ' · +Escort' : ''}</Text>
         </View>
         <GoldButton
           title="Book Ride"
@@ -336,8 +363,16 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   typeText: { fontFamily: 'Inter-SemiBold', fontSize: 11, color: colors.rides, textTransform: 'capitalize' },
-  hostRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 14 },
-  hostText: { fontFamily: 'Inter-Regular', fontSize: 12, color: colors.textSecondary },
+  providerBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(201,151,42,0.08)',
+    borderWidth: 1, borderColor: 'rgba(201,151,42,0.25)',
+    borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4,
+    marginBottom: 14,
+  },
+  providerLabel: { fontFamily: 'Inter-Regular', fontSize: 11, color: colors.textMuted },
+  providerName: { fontFamily: 'Inter-SemiBold', fontSize: 11, color: colors.goldEnd },
   chipsRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginBottom: 12 },
   chip: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
@@ -386,4 +421,22 @@ const styles = StyleSheet.create({
   ctaSummary: { gap: 2 },
   ctaPrice: { fontFamily: 'PlayfairDisplay-Bold', fontSize: 18, color: colors.goldEnd },
   ctaDuration: { fontFamily: 'Inter-Regular', fontSize: 11, color: colors.textMuted },
+  escortSection: {
+    marginTop: 14,
+    backgroundColor: 'rgba(217,153,24,0.08)',
+    borderWidth: 1, borderColor: 'rgba(217,153,24,0.25)',
+    borderRadius: 14, padding: 14, gap: 10,
+  },
+  escortHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  escortTitle: { fontFamily: 'Inter-SemiBold', fontSize: 13, color: colors.textPrimary },
+  escortSub: { fontFamily: 'Inter-Bold', fontSize: 12, color: colors.goldEnd, marginTop: 2 },
+  escortDesc: { fontFamily: 'Inter-Regular', fontSize: 12, color: colors.textMuted, lineHeight: 18 },
+  escortToggle: {
+    paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20,
+    backgroundColor: colors.bgElevated,
+    borderWidth: 1, borderColor: colors.borderGold,
+  },
+  escortToggleOn: { backgroundColor: 'rgba(217,153,24,0.25)', borderColor: colors.goldEnd },
+  escortToggleText: { fontFamily: 'Inter-Bold', fontSize: 12, color: colors.textMuted },
+  escortToggleTextOn: { color: colors.goldEnd },
 });

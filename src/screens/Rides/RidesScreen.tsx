@@ -98,7 +98,11 @@ export const RidesScreen = ({ navigation }: any) => {
                     </Text>
                   </View>
                   {!!item.businessName && (
-                    <Text style={styles.cardBusiness}>Offered by {item.businessName}</Text>
+                    <View style={styles.providerBadge}>
+                      <Icon name="building" size={10} color={colors.goldMid} />
+                      <Text style={styles.providerBadgeLabel}>Offered by</Text>
+                      <Text style={styles.providerBadgeName}>{item.businessName}</Text>
+                    </View>
                   )}
                   <View style={styles.cardMeta}>
                     {[
@@ -158,7 +162,6 @@ const styles = StyleSheet.create({
   cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   cardName: { fontFamily: 'PlayfairDisplay-Bold', fontSize: 16, color: colors.textPrimary },
   cardPrice: { fontFamily: 'Inter-Bold', fontSize: 15, color: colors.goldEnd },
-  cardBusiness: { fontFamily: 'Inter-Regular', fontSize: 11, color: colors.textMuted, marginBottom: 4 },
   perDay: { fontFamily: 'Inter-Regular', fontSize: 10, color: colors.textMuted },
   cardMeta: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   metaChip: {
@@ -168,4 +171,14 @@ const styles = StyleSheet.create({
     borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4,
   },
   metaText: { fontFamily: 'Inter-Regular', fontSize: 10, color: colors.textSecondary },
+  providerBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(201,151,42,0.08)',
+    borderWidth: 1, borderColor: 'rgba(201,151,42,0.22)',
+    borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3,
+    marginBottom: 4,
+  },
+  providerBadgeLabel: { fontFamily: 'Inter-Regular', fontSize: 10, color: colors.textMuted },
+  providerBadgeName: { fontFamily: 'Inter-SemiBold', fontSize: 10, color: colors.goldEnd },
 });

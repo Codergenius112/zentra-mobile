@@ -96,7 +96,11 @@ export const StaysScreen = ({ navigation }: any) => {
                     </Text>
                   </View>
                   {!!item.businessName && (
-                    <Text style={styles.cardBusiness}>Managed by {item.businessName}</Text>
+                    <View style={styles.providerBadge}>
+                      <Icon name="building" size={10} color={colors.goldMid} />
+                      <Text style={styles.providerBadgeLabel}>Managed by</Text>
+                      <Text style={styles.providerBadgeName}>{item.businessName}</Text>
+                    </View>
                   )}
                   <View style={styles.cardMeta}>
                     <Icon name="location-dot" size={11} color={colors.goldMid} />
@@ -151,8 +155,17 @@ const styles = StyleSheet.create({
   cardInfoTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   cardName: { fontFamily: 'PlayfairDisplay-Bold', fontSize: 15, color: colors.textPrimary, flex: 1 },
   cardPrice: { fontFamily: 'Inter-Bold', fontSize: 15, color: colors.goldEnd },
-  cardBusiness: { fontFamily: 'Inter-Regular', fontSize: 11, color: colors.textMuted, marginTop: -2, marginBottom: 4 },
   perNight: { fontFamily: 'Inter-Regular', fontSize: 10, color: colors.textMuted },
   cardMeta: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
   cardMetaText: { fontFamily: 'Inter-Regular', fontSize: 11, color: colors.textMuted },
+  providerBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(201,151,42,0.08)',
+    borderWidth: 1, borderColor: 'rgba(201,151,42,0.22)',
+    borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3,
+    marginBottom: 4,
+  },
+  providerBadgeLabel: { fontFamily: 'Inter-Regular', fontSize: 10, color: colors.textMuted },
+  providerBadgeName: { fontFamily: 'Inter-SemiBold', fontSize: 10, color: colors.goldEnd },
 });

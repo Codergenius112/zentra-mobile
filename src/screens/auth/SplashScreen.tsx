@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, Dimensions, ImageBackground } from 'react-native';
+import { View, Text, Image, StyleSheet, Dimensions, ImageBackground } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors } from '../../theme/colors';
 
@@ -23,10 +23,12 @@ export const SplashScreen = ({ navigation }: any) => {
         style={StyleSheet.absoluteFill}
       />
       <View style={styles.content}>
-        <View style={styles.starIcon}>
-          <LinearGradient colors={[colors.goldStart, colors.goldEnd]} style={styles.starGradient}>
-            <Text style={styles.starText}>✦</Text>
-          </LinearGradient>
+        <View style={styles.logoContainer}>
+          <Image
+            source={require('../../../assets/icon.png')}
+            style={styles.logoImage}
+            resizeMode="contain"
+          />
         </View>
         <Text style={styles.headline}>Elevate Every Experience</Text>
         <Text style={styles.subtitle}>Your night. Your way. All in one place.</Text>
@@ -38,9 +40,12 @@ export const SplashScreen = ({ navigation }: any) => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bgPrimary },
   content: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16 },
-  starIcon: { marginBottom: 8 },
-  starGradient: { width: 72, height: 72, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  starText: { fontSize: 36, color: '#0A0A0F' },
+  logoContainer: { marginBottom: 8 },
+  logoImage: {
+    width: 88,
+    height: 88,
+    borderRadius: 22,
+  },
   headline: {
     fontFamily: 'PlayfairDisplay-Bold',
     fontSize: 26,

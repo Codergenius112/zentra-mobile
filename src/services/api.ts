@@ -226,6 +226,10 @@ export interface CarListing {
   description?: string;
   features: string[];
   unavailableDates?: string[] | null;
+  /** Whether this listing offers an escort/security add-on */
+  escortAvailable?: boolean;
+  /** Flat fee charged when user opts in to escort, in Naira */
+  escortPrice?: number;
 }
 
 export interface JetListing {
@@ -541,6 +545,7 @@ export const carsAPI = {
     price: number;
     driverLicense: string;
     pickupLocation: string;
+    withEscort?: boolean;
   }): Promise<BackendBooking> =>
     client.post('/cars', payload).then((r) => r.data?.booking ?? r.data),
 };

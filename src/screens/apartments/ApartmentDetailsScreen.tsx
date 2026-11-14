@@ -145,9 +145,10 @@ export const ApartmentDetailScreen = ({ route, navigation }: any) => {
           </View>
 
           {!!apt.businessName && (
-            <View style={styles.hostRow}>
+            <View style={styles.providerBadge}>
               <Icon name="building" size={11} color={colors.goldMid} />
-              <Text style={styles.hostText}>Managed by {apt.businessName}</Text>
+              <Text style={styles.providerLabel}>Managed by</Text>
+              <Text style={styles.providerName}>{apt.businessName}</Text>
             </View>
           )}
 
@@ -290,8 +291,16 @@ const styles = StyleSheet.create({
   ratingText: { fontFamily: 'Inter-Medium', fontSize: 11, color: colors.goldEnd },
   locationRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   locationText: { fontFamily: 'Inter-Regular', fontSize: 12, color: colors.textSecondary },
-  hostRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 14 },
-  hostText: { fontFamily: 'Inter-Regular', fontSize: 12, color: colors.textSecondary },
+  providerBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(201,151,42,0.08)',
+    borderWidth: 1, borderColor: 'rgba(201,151,42,0.25)',
+    borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4,
+    marginBottom: 14,
+  },
+  providerLabel: { fontFamily: 'Inter-Regular', fontSize: 11, color: colors.textMuted },
+  providerName: { fontFamily: 'Inter-SemiBold', fontSize: 11, color: colors.goldEnd },
   priceRow: { marginBottom: 16 },
   price: { fontFamily: 'PlayfairDisplay-Bold', fontSize: 22, color: colors.goldEnd },
   perNight: { fontFamily: 'Inter-Regular', fontSize: 13, color: colors.textMuted },
