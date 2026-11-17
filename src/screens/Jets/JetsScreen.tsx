@@ -35,76 +35,6 @@ const AIRPORTS = [
   { code: 'DXB', name: 'Dubai (Al Maktoum International)' },
 ];
 
-// Fallback luxury fleet if backend has zero listings
-const FALLBACK_FLEET: JetListing[] = [
-  {
-    id: 'mock-g650',
-    name: 'Gulfstream G650ER',
-    model: 'G650ER',
-    manufacturer: 'Gulfstream',
-    category: 'HEAVY_JET',
-    tailNumber: '5N-ZEN',
-    capacity: 14,
-    rangeNauticalMiles: 7500,
-    cruisingSpeedKnots: 516,
-    pricePerHour: 4800000,
-    cautionFee: 500000,
-    cautionFeeRefundable: true,
-    baseAirport: 'LOS - Murtala Muhammed International',
-    city: 'Lagos',
-    country: 'Nigeria',
-    description: 'Ultra-long range luxury jet with bedroom suite, high-speed Ka-band Wi-Fi and dedicated cabin hostess.',
-    features: ['Ka-Band Wi-Fi', 'Private Stateroom', 'Full Galley', 'Enclosed Lavatory'],
-    amenities: ['Dom Pérignon Service', 'Gourmet Catering', 'VIP Ground Transfer'],
-    images: ['https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?auto=format&fit=crop&w=1200&q=80'],
-    isActive: true,
-  },
-  {
-    id: 'mock-challenger',
-    name: 'Bombardier Challenger 350',
-    model: 'Challenger 350',
-    manufacturer: 'Bombardier',
-    category: 'MIDSIZE_JET',
-    tailNumber: '5N-ABV',
-    capacity: 9,
-    rangeNauticalMiles: 3200,
-    cruisingSpeedKnots: 470,
-    pricePerHour: 3200000,
-    cautionFee: 350000,
-    cautionFeeRefundable: true,
-    baseAirport: 'ABV - Nnamdi Azikiwe International',
-    city: 'Abuja',
-    country: 'Nigeria',
-    description: 'Super midsize jet combining widebody cabin space with high-speed performance across West Africa and Europe.',
-    features: ['Satellite Wi-Fi', 'Flat Floor Cabin', 'Dual Club Seating'],
-    amenities: ['Fine Wines', 'Espresso Bar', 'Noise-Cancelling Headsets'],
-    images: ['https://images.unsplash.com/photo-1569154941061-e231b4725ef1?auto=format&fit=crop&w=1200&q=80'],
-    isActive: true,
-  },
-  {
-    id: 'mock-bell429',
-    name: 'Bell 429 GlobalRanger',
-    model: 'Bell 429',
-    manufacturer: 'Bell Helicopter',
-    category: 'HELICOPTER',
-    tailNumber: '5N-HLI',
-    capacity: 6,
-    rangeNauticalMiles: 411,
-    cruisingSpeedKnots: 155,
-    pricePerHour: 1800000,
-    cautionFee: 200000,
-    cautionFeeRefundable: true,
-    baseAirport: 'Victoria Island Heliport',
-    city: 'Lagos',
-    country: 'Nigeria',
-    description: 'Executive twin-engine helicopter for rapid VIP airport and intercity transfers avoiding city traffic.',
-    features: ['Twin Turbines', 'Air Conditioning', 'Panoramic Windows'],
-    amenities: ['Leather Club Seating', 'VIP Meet & Greet'],
-    images: ['https://images.unsplash.com/photo-1508614589041-895b88991e3e?auto=format&fit=crop&w=1200&q=80'],
-    isActive: true,
-  },
-];
-
 export const JetsScreen = ({ navigation }: any) => {
   const [jets, setJets] = useState<JetListing[]>([]);
   const [category, setCategory] = useState('ALL');
@@ -140,11 +70,11 @@ export const JetsScreen = ({ navigation }: any) => {
       const res = await jetsAPI.getListings({
         category: category === 'ALL' ? undefined : category,
       });
-      const list = res.listings && res.listings.length > 0 ? res.listings : FALLBACK_FLEET;
-      setJets(list);
+      setJets(res.listings ?? []);
     } catch (err) {
-      console.warn('Failed to load live jets, using fallback fleet', err);
-      setJets(FALLBACK_FLEET);
+      console.warn('Failed to load jet listings', err);
+      setHasError(true);
+      setJets([]);
     } finally {
       setIsLoading(false);
     }
@@ -189,18 +119,12 @@ export const JetsScreen = ({ navigation }: any) => {
 
       const booking = await jetsAPI.bookJet(payload);
       setSelectedJet(null);
-
-      Alert.alert(
-        'Charter Booking Created! ✈️',
-        `Your reservation for ${selectedJet.name} has been initiated.\n\nBooking ID: #${booking?.id?.slice(0, 8) || 'CONFIRMED'}\nDeparture: ${departureDate} (${departureAirport} → ${arrivalAirport})`,
-        [
-          {
-            text: 'View in My Bookings',
-            onPress: () => navigation.navigate('BookingsStack', { screen: 'MyBookings' }),
-          },
-          { text: 'Done', style: 'cancel' },
-        ],
-      );
+      navigation.navigate('Payment', {
+        existingBookingId: booking.id,
+        existingTotalAmount: booking.totalAmount,
+        existingLabel: `${selectedJet.name} · ${departureAirport} → ${arrivalAirport}`,
+        bookingType: 'jet',
+      });
     } catch (err: any) {
       const msg = err?.response?.data?.message || err?.message || 'Unable to complete jet charter booking';
       Alert.alert('Booking Error', msg);
@@ -278,11 +202,18 @@ export const JetsScreen = ({ navigation }: any) => {
             showsVerticalScrollIndicator={false}
             renderItem={({ item }) => (
               <View style={styles.card}>
-                <ImageBackground
-                  source={{ uri: item.images?.[0] || 'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?auto=format&fit=crop&w=1200&q=80' }}
-                  style={styles.cardImage}
-                  imageStyle={styles.cardImageInner}
-                >
+                <View style={styles.cardImage}>
+                  {item.images?.[0] ? (
+                    <ImageBackground
+                      source={{ uri: item.images[0] }}
+                      style={StyleSheet.absoluteFill}
+                      imageStyle={styles.cardImageInner}
+                    />
+                  ) : (
+                    <View style={[StyleSheet.absoluteFill, styles.cardImagePlaceholder]}>
+                      <Icon name="plane" size={38} color={colors.goldMid} />
+                    </View>
+                  )}
                   <LinearGradient colors={['rgba(0,0,0,0.1)', 'rgba(0,0,0,0.85)']} style={StyleSheet.absoluteFill} />
                   <View style={styles.badgeRow}>
                     <View style={styles.categoryBadge}>
@@ -297,7 +228,7 @@ export const JetsScreen = ({ navigation }: any) => {
                     <Text style={styles.jetName}>{item.name}</Text>
                     <Text style={styles.jetModel}>{item.manufacturer} • {item.model}</Text>
                   </View>
-                </ImageBackground>
+                </View>
 
                 <View style={styles.cardContent}>
                   {/* Specs Row */}
@@ -612,6 +543,7 @@ const styles = StyleSheet.create({
   },
   cardImage: { height: 180, justifyContent: 'space-between', padding: 14 },
   cardImageInner: { borderTopLeftRadius: 19, borderTopRightRadius: 19 },
+  cardImagePlaceholder: { alignItems: 'center', justifyContent: 'center', backgroundColor: colors.cardBg },
   badgeRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   categoryBadge: {
     backgroundColor: 'rgba(0,0,0,0.7)', paddingHorizontal: 10, paddingVertical: 4,

@@ -1,9 +1,10 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { View, Text, StyleSheet, TouchableOpacity, FlatList, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { FontAwesome6 as Icon } from '@expo/vector-icons';
-import { bookingsAPI, eventsAPI, BackendBooking } from '../../services/api';
+import { bookingsAPI, eventsAPI, jetsAPI, BackendBooking } from '../../services/api';
 import { BadgePill } from '../../components/BadgePill';
 import { EmptyState } from '../../components/EmptyState';
 import { ErrorState } from '../../components/ErrorState';
@@ -32,6 +33,7 @@ const bookingTypeIcon: Record<string, string> = {
   table: 'champagne-glasses',
   apartment: 'bed',
   car: 'car',
+  jet: 'plane',
 };
 
 interface DisplayBooking extends BackendBooking {
@@ -48,9 +50,18 @@ export const MyBookingsScreen = ({ navigation }: any) => {
     setIsLoading(true);
     setHasError(false);
     try {
-      const res = await bookingsAPI.getMyBookings({ limit: 50 });
+      const [res, jetRes] = await Promise.all([
+        bookingsAPI.getMyBookings({ limit: 50 }),
+        jetsAPI.getMyBookings({ limit: 50 }),
+      ]);
+      const allBookings = [
+        ...res.bookings,
+        ...jetRes.bookings.filter((jetBooking) =>
+          !res.bookings.some((booking) => booking.id === jetBooking.id),
+        ),
+      ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       const withNames = await Promise.all(
-        res.bookings.map(async (b): Promise<DisplayBooking> => {
+        allBookings.map(async (b): Promise<DisplayBooking> => {
           if (b.bookingType === 'ticket') {
             try {
               const event = await eventsAPI.getEventById(b.resourceId);
@@ -61,6 +72,9 @@ export const MyBookingsScreen = ({ navigation }: any) => {
           }
           if (b.bookingType === 'table') {
             return { ...b, displayName: b.metadata?.tableName ?? 'Table Reservation' };
+          }
+          if (b.bookingType === 'jet') {
+            return { ...b, displayName: b.metadata?.aircraftName ?? 'Jet Charter' };
           }
           return { ...b, displayName: b.bookingType === 'apartment' ? 'Stay Reservation' : 'Ride Booking' };
         }),
@@ -73,7 +87,9 @@ export const MyBookingsScreen = ({ navigation }: any) => {
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useFocusEffect(useCallback(() => {
+    void load();
+  }, [load]));
 
   const filtered = bookings.filter((b) => {
     if (activeTab === 'Completed') return b.status === 'COMPLETED';

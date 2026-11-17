@@ -101,12 +101,20 @@ export const BookingConfirmationScreen = ({ route, navigation }: any) => {
             extra: tableName,
           });
         } else {
-          const checkInOrPickup = b.metadata?.checkInDate ?? b.metadata?.pickupDate;
+          const checkInOrPickup = b.metadata?.checkInDate
+            ?? b.metadata?.pickupDate
+            ?? b.metadata?.departureDate;
+          const isJet = b.bookingType === 'jet';
           setDetails({
-            name: b.bookingType === 'apartment' ? 'Stay Reservation' : 'Ride Booking',
+            name: isJet
+              ? `${b.metadata?.aircraftName ?? 'Jet'} Charter`
+              : b.bookingType === 'apartment' ? 'Stay Reservation' : 'Ride Booking',
             dateLabel: checkInOrPickup
               ? new Date(checkInOrPickup).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
               : new Date(b.createdAt).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }),
+            extra: isJet
+              ? [b.metadata?.departureAirport, b.metadata?.arrivalAirport].filter(Boolean).join(' → ')
+              : undefined,
           });
         }
       } catch (err) {

@@ -24,18 +24,13 @@ type PaymentChannels = PaystackProps.PaymentChannels;
  *
  * This provider keeps the SAME public API (PaystackProvider props,
  * usePaystack().popup.checkout/newTransaction, naira-in/×100-inside amount
- * contract) but keeps one WebView alive for the life of the app:
+ * contract) and runs checkout in a WebView hosted by a native modal:
  *
- *   1. The WebView is mounted at app start, inside a permanently-mounted Modal
- *      (visible=false), and never unmounted between transactions, so the
- *      expensive WKWebView creation happens once, off the critical path.
- *   2. The HTML pre-loads inline.js at startup. A transaction is triggered
- *      later by postMessage — no page reload, script already downloaded and
- *      the CDN connection warm.
- *   3. If checkout is requested before the page finished booting, the exact
+ *   1. The WebView loads Paystack's inline.js when the payment modal opens.
+ *   2. Checkout is triggered over the React Native WebView message bridge.
+ *   3. If checkout is requested before the page finishes booting, the exact
  *      start payload is queued and fired on the 'bridge_ready' message; a
- *      watchdog reloads the WebView once, then fails visibly rather than
- *      hanging the calling screen.
+ *      watchdog reloads the WebView once, then reports a visible failure.
  *
  * Callbacks are matched per-transaction via a map keyed by reference, so a
  * stale overlay from an abandoned session can never deliver a result into the
@@ -179,7 +174,6 @@ export const PaystackProvider = ({
   onGlobalCancel,
 }: Props) => {
   const [visible, setVisible] = useState(false);
-  const [bridgeReady, setBridgeReady] = useState(false);
   const [awaitingOverlay, setAwaitingOverlay] = useState(false);
 
   const webviewRef = useRef<WebView>(null);
@@ -222,6 +216,8 @@ export const PaystackProvider = ({
       activeRefRef.current = null;
       queuedStartRef.current = null;
       clearWatchdog();
+      bridgeReadyRef.current = false;
+      reloadTriedRef.current = false;
       setAwaitingOverlay(false);
       setVisible(false);
       if (outcome === 'success') {
@@ -312,7 +308,6 @@ export const PaystackProvider = ({
         case 'bridge_ready': {
           log('[Paystack] bridge ready');
           bridgeReadyRef.current = true;
-          setBridgeReady(true);
           reloadTriedRef.current = false;
           const queued = queuedStartRef.current;
           if (queued && handlersRef.current[queued.reference]) {
@@ -358,9 +353,8 @@ export const PaystackProvider = ({
   return (
     <PaystackContext.Provider value={{ popup }}>
       {children}
-      {/* Mounted for the whole app lifetime; only `visible` toggles. Unmounting
-          the WebView between payments would recreate the exact cold start this
-          file exists to eliminate. */}
+      {/* React Native may unmount modal contents when it closes, so bridge
+          readiness is reset for every transaction. */}
       <Modal
         visible={visible}
         transparent={false}
@@ -375,6 +369,14 @@ export const PaystackProvider = ({
             javaScriptEnabled
             domStorageEnabled
             onMessage={handleMessage}
+            onError={(event) => {
+              const reference = activeRefRef.current;
+              if (reference) {
+                settleTransaction(reference, 'error', {
+                  message: event.nativeEvent.description || 'The secure payment page failed to load.',
+                });
+              }
+            }}
             onShouldStartLoadWithRequest={(request) => {
               const url = request.url ?? '';
               if (shouldHandleExternally(url, resolvedDeepLinkHosts)) {

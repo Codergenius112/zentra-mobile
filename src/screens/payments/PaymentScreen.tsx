@@ -199,7 +199,7 @@ export const PaymentScreen = ({ route, navigation }: any) => {
   const addBooking = useStore((s) => s.addBooking);
   const { popup } = usePaystack();
 
-  const intent = useMemo(() => resolveIntent(route?.params), []);
+  const intent = useMemo(() => resolveIntent(route?.params), [route?.params]);
   const total = intent ? displayTotal(intent) : 0;
 
   const [phase, setPhase] = useState<Phase>('review');
@@ -498,17 +498,22 @@ export const PaymentScreen = ({ route, navigation }: any) => {
         setPhase('failed');
         playResultAnimation({ shake: true });
       },
-      // Unlike the stock library (which never fired onError), our provider
-      // can — intentionally unused here so a Paystack-side error keeps the
-      // existing escape-hatch flow: the "Payment window closed without a
-      // result?" button in the charging UI.
-      onError: () => {},
+      onError: (err: any) => {
+        if (!mountedRef.current) return;
+        const detail = err?.message || err?.description;
+        setFailureReason(
+          detail
+            ? `The payment page closed unexpectedly (${detail}). Check your booking status before trying again.`
+            : 'The payment page closed unexpectedly. Check your booking status before trying again.',
+        );
+        setPhase('failed');
+        playResultAnimation({ shake: true });
+      },
     });
   }, [intent, user?.email, createBooking, addBooking, popup, handlePaid, playResultAnimation]);
 
-  // A silently dismissed modal is UNKNOWN, not cancelled — covers the case
-  // where onError isn't wired up above (see the comment on that prop) and the
-  // user instead just closes the payment window without a clear result.
+  // A silently dismissed modal is UNKNOWN, not cancelled — the user can ask
+  // the server to verify the reference before deciding whether to retry.
   const handleWindowClosed = useCallback(async () => {
     const held = bookingRef.current;
     if (!held) {
@@ -771,8 +776,7 @@ export const PaymentScreen = ({ route, navigation }: any) => {
                     : 'Confirming your payment…'}
               </Text>
 
-              {/* onError is intentionally left unused above, so a silently
-                  dismissed modal would otherwise hang on this spinner forever. */}
+              {/* Some payment WebView dismissals do not include a result callback. */}
               {phase === 'charging' && (
                 <TouchableOpacity style={styles.escapeBtn} onPress={handleWindowClosed}>
                   <Text style={styles.escapeText}>Payment window closed without a result?</Text>

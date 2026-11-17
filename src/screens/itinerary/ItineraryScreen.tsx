@@ -12,6 +12,7 @@ import { colors } from '../../theme/colors';
 
 const typeConfig: Record<string, { icon: string; color: string }> = {
   ride:  { icon: 'car-side',          color: colors.rides },
+  jet:   { icon: 'plane',             color: colors.rides },
   stay:  { icon: 'bed',               color: colors.stays },
   event: { icon: 'champagne-glasses', color: colors.goldEnd },
   table: { icon: 'crown',             color: colors.goldEnd },
