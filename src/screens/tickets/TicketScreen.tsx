@@ -83,6 +83,7 @@ export const TicketScreen = ({ route, navigation }: any) => {
 
   // QR payload — encodes the ticket ID for venue scanning.
   const qrPayload = ticket ? JSON.stringify({
+    bookingId: ticket.id,
     ticketId: ticket.id,
     eventId: ticket.resourceId,
     status: ticket.status,
